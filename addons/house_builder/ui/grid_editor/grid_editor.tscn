@@ -1,0 +1,16 @@
+[gd_scene format=3 uid="uid://f414em4kwtut"]
+
+[ext_resource type="Script" uid="uid://bo87kixid65t2" path="res://addons/house_builder/ui/grid_editor/grid_editor.gd" id="1_cwslb"]
+
+[node name="GridEditor" type="Control" unique_id=157821048]
+custom_minimum_size = Vector2(0, 60)
+layout_mode = 3
+anchors_preset = 15
+anchor_right = 1.0
+anchor_bottom = 1.0
+grow_horizontal = 2
+grow_vertical = 2
+size_flags_horizontal = 3
+size_flags_vertical = 2
+script = ExtResource("1_cwslb")
+cell_size = 18.0

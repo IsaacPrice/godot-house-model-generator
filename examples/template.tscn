@@ -1,0 +1,41 @@
+[gd_scene format=3]
+
+[ext_resource type="Script" path="res://addons/house_builder/data/floor_data.gd" id="1_cehdc"]
+[ext_resource type="Script" path="res://addons/house_builder/data/chimney_data.gd" id="2_wvrcp"]
+[ext_resource type="Script" path="res://addons/house_builder/data/dormer_data.gd" id="3_kjr0g"]
+[ext_resource type="Script" path="res://addons/house_builder/data/gable_data.gd" id="4_ty37b"]
+[ext_resource type="Script" path="res://addons/house_builder/data/wall_detail.gd" id="5_cyo3s"]
+[ext_resource type="Material" path="res://materials/Bricks076A/Bricks076A_2K-PNG.tres" id="6_pgmpk"]
+[ext_resource type="Material" path="res://materials/Plastic013A/Plastic013A_2K-PNG.tres" id="7_bjqob"]
+[ext_resource type="Material" path="res://materials/RoofingTiles003/RoofingTiles003_2K-PNG.tres" id="8_api0h"]
+[ext_resource type="Script" path="res://addons/house_builder/data/house_data.gd" id="9_5fe21"]
+[ext_resource type="Material" path="res://materials/WoodSiding009/WoodSiding009_2K-PNG.tres" id="10_kgbnc"]
+[ext_resource type="Material" path="res://materials/Wood033/Wood033_2K-PNG.tres" id="11_sau76"]
+
+[sub_resource type="Resource" id="Resource_lq6oa"]
+script = ExtResource("1_cehdc")
+
+[sub_resource type="Resource" id="Resource_laggi"]
+script = ExtResource("1_cehdc")
+
+[sub_resource type="Resource" id="Resource_4i14d"]
+script = ExtResource("9_5fe21")
+floors = Array[ExtResource("1_cehdc")]([SubResource("Resource_lq6oa"), SubResource("Resource_laggi")])
+siding_material = ExtResource("10_kgbnc")
+trim_material = ExtResource("11_sau76")
+foundation_material = ExtResource("6_pgmpk")
+roofing_shingles_material = ExtResource("8_api0h")
+roof_underlayment_material = ExtResource("7_bjqob")
+wall_thickness = 0.1
+corner_trim_width = 0.05
+foundation_height = 1.0
+
+[sub_resource type="ArrayMesh" id="ArrayMesh_7tbcy"]
+
+[node name="House" type="Node3D" unique_id=2061606417]
+metadata/house_data = SubResource("Resource_4i14d")
+
+[node name="MeshInstance3D" type="MeshInstance3D" parent="." unique_id=895432863]
+mesh = SubResource("ArrayMesh_7tbcy")
+
+[node name="StaticBody3D" type="StaticBody3D" parent="." unique_id=19311462]

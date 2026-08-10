@@ -1,0 +1,47 @@
+[gd_scene format=3 uid="uid://crxamw1q5utsh"]
+
+[ext_resource type="PackedScene" uid="uid://f414em4kwtut" path="res://addons/house_builder/ui/grid_editor/grid_editor.tscn" id="1_1x8ko"]
+[ext_resource type="Script" uid="uid://cqkapb5n8ugxp" path="res://addons/house_builder/ui/level_editor/level_editor.gd" id="1_k36tk"]
+
+[node name="LevelEditor" type="VBoxContainer" unique_id=1536967200]
+size_flags_horizontal = 3
+size_flags_vertical = 3
+script = ExtResource("1_k36tk")
+
+[node name="MarginContainer" type="MarginContainer" parent="." unique_id=1995492862]
+layout_mode = 2
+
+[node name="GridContainer" type="GridContainer" parent="MarginContainer" unique_id=117450266]
+layout_mode = 2
+columns = 2
+
+[node name="Level" type="Label" parent="MarginContainer/GridContainer" unique_id=334600242]
+layout_mode = 2
+text = "Level"
+
+[node name="LevelSpinBox" type="SpinBox" parent="MarginContainer/GridContainer" unique_id=2035544176]
+unique_name_in_owner = true
+custom_minimum_size = Vector2(56, 0)
+layout_mode = 2
+size_flags_horizontal = 0
+max_value = 10.0
+rounded = true
+
+[node name="Height" type="Label" parent="MarginContainer/GridContainer" unique_id=1414362376]
+layout_mode = 2
+text = "Height"
+
+[node name="HeightSpinBox" type="SpinBox" parent="MarginContainer/GridContainer" unique_id=1363234209]
+unique_name_in_owner = true
+custom_minimum_size = Vector2(56, 0)
+layout_mode = 2
+size_flags_horizontal = 0
+max_value = 20.0
+step = 0.25
+value = 3.0
+rounded = true
+
+[node name="GridEditor" parent="." unique_id=157821048 instance=ExtResource("1_1x8ko")]
+unique_name_in_owner = true
+custom_minimum_size = Vector2(180, 180)
+layout_mode = 2

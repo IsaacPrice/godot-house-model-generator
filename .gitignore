@@ -1,0 +1,25 @@
+# Godot
+.godot/
+/android/
+export_presets.cfg
+*.translation
+
+# Agent tooling
+.claude/
+AGENTS.md
+CLAUDE.md
+.cursor/
+.cursorrules
+.aider*
+
+# Editors / OS
+.vscode/
+.idea/
+.DS_Store
+Thumbs.db
+desktop.ini
+
+# Build and test output
+/builds/
+/export/
+examples/test_export_output.tscn

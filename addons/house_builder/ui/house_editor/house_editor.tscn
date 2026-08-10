@@ -1,0 +1,97 @@
+[gd_scene format=3 uid="uid://dl73mcoe64n6q"]
+
+[ext_resource type="Script" uid="uid://bdmo3yunjr6x1" path="res://addons/house_builder/ui/house_editor/house_editor.gd" id="1_3mj0x"]
+[ext_resource type="Script" uid="uid://cavi5x7yf5l88" path="res://addons/house_builder/ui/toolbar.gd" id="2_ulvb0"]
+[ext_resource type="Script" uid="uid://ogf8r8aiqwj5" path="res://addons/house_builder/ui/house_editor/house_properties.gd" id="3_fcbpm"]
+[ext_resource type="Script" uid="uid://c62krxblqdg1g" path="res://addons/house_builder/ui/house_editor/floors.gd" id="3_rk1hc"]
+
+[node name="HouseEditor" type="VBoxContainer" unique_id=433680183]
+script = ExtResource("1_3mj0x")
+
+[node name="Toolbar" type="SplitContainer" parent="." unique_id=562588450]
+layout_mode = 2
+split_offsets = PackedInt32Array(43, 98, 153)
+split_offset = 43
+script = ExtResource("2_ulvb0")
+
+[node name="New" type="Button" parent="Toolbar" unique_id=91431467]
+layout_mode = 2
+text = "New"
+
+[node name="Open" type="Button" parent="Toolbar" unique_id=1711398242]
+layout_mode = 2
+text = "Open"
+
+[node name="Save" type="Button" parent="Toolbar" unique_id=1258673132]
+layout_mode = 2
+text = "Save As"
+
+[node name="Export" type="Button" parent="Toolbar" unique_id=1465715842]
+layout_mode = 2
+text = "Export"
+
+[node name="CurrentFile" type="Label" parent="." unique_id=1846201377]
+layout_mode = 2
+mouse_filter = 1
+clip_text = true
+text = "(no house)"
+
+[node name="ScrollContainer" type="ScrollContainer" parent="." unique_id=384756219]
+layout_mode = 2
+size_flags_vertical = 3
+horizontal_scroll_mode = 0
+
+[node name="Content" type="VBoxContainer" parent="ScrollContainer" unique_id=918273645]
+layout_mode = 2
+size_flags_horizontal = 3
+
+[node name="HouseProperties" type="VBoxContainer" parent="ScrollContainer/Content" unique_id=2097042012]
+custom_minimum_size = Vector2(0, 80)
+layout_mode = 2
+script = ExtResource("3_fcbpm")
+
+[node name="Label" type="Label" parent="ScrollContainer/Content/HouseProperties" unique_id=1029927988]
+layout_mode = 2
+text = "Properties"
+
+[node name="HSeparator" type="HSeparator" parent="ScrollContainer/Content/HouseProperties" unique_id=1006810023]
+layout_mode = 2
+
+[node name="GridContainer" type="GridContainer" parent="ScrollContainer/Content/HouseProperties" unique_id=1616421553]
+layout_mode = 2
+columns = 2
+
+[node name="CellSizeLabel" type="Label" parent="ScrollContainer/Content/HouseProperties/GridContainer" unique_id=1341307461]
+layout_mode = 2
+text = "Cell Size"
+
+[node name="CellSizeSpin" type="SpinBox" parent="ScrollContainer/Content/HouseProperties/GridContainer" unique_id=987659283]
+layout_mode = 2
+min_value = 1.0
+max_value = 4.0
+step = 0.25
+value = 2.0
+
+[node name="Floors" type="VBoxContainer" parent="ScrollContainer/Content" unique_id=107705686]
+custom_minimum_size = Vector2(0, 80)
+layout_mode = 2
+script = ExtResource("3_rk1hc")
+
+[node name="Label" type="Label" parent="ScrollContainer/Content/Floors" unique_id=1343923878]
+layout_mode = 2
+text = "Floors"
+
+[node name="HSeparator" type="HSeparator" parent="ScrollContainer/Content/Floors" unique_id=797015941]
+layout_mode = 2
+
+[node name="FloorList" type="VBoxContainer" parent="ScrollContainer/Content/Floors" unique_id=650724364]
+layout_mode = 2
+
+[node name="AddButton" type="Button" parent="ScrollContainer/Content/Floors" unique_id=1621603590]
+layout_mode = 2
+text = "Add Floor"
+
+[connection signal="pressed" from="Toolbar/New" to="Toolbar" method="_on_new_pressed"]
+[connection signal="pressed" from="Toolbar/Open" to="Toolbar" method="_on_open_pressed"]
+[connection signal="pressed" from="Toolbar/Save" to="Toolbar" method="_on_save_pressed"]
+[connection signal="pressed" from="Toolbar/Export" to="Toolbar" method="_on_export_pressed"]
