@@ -35,7 +35,7 @@ static func build(house: HouseData, floor_infos: Array[Dictionary], accumulator:
 		var gutters_here: bool = not roofed or floor_data.level == gutter_level
 
 		var downspout_walls: Array[PackedVector2Array] = []
-		for house_loop in Footprint.trace_loops(floor_data.cells, house.level_cell_size):
+		for house_loop in Footprint.trace_loops(_grounded_cells(house, floor_data), house.level_cell_size):
 			var wall_region := PackedVector2Array()
 			for k in range(house_loop.size()):
 				wall_region.append(house_loop.corner_offset(k, half_thickness))
@@ -58,6 +58,8 @@ static func build(house: HouseData, floor_infos: Array[Dictionary], accumulator:
 			input.wall_clearance = house.corner_trim_width + RoofConstants.WALL_CLEARANCE_MARGIN
 			input.soffit_overlap = half_thickness
 			input.downspout_walls = downspout_walls
+			if downspout_walls.is_empty():
+				input.downspouts_enabled = false
 			if not gutters_here:
 				input.gutter_style = RoofGutters.Style.NONE
 			var model: RoofModel = RoofGenerator.generate(input)
@@ -74,6 +76,18 @@ static func build(house: HouseData, floor_infos: Array[Dictionary], accumulator:
 			push_error("RoofBuilder: gable wall %s - %s matched no roof outline on floor level %d." % [seg[0], seg[1], floor_data.level])
 
 	return models
+
+
+static func _grounded_cells(house: HouseData, floor_data: FloorData) -> Array[Vector2i]:
+	var porch_cells: Array[Vector2i] = house.floors[0].porch_cells
+	if porch_cells.is_empty():
+		return floor_data.cells
+
+	var grounded: Array[Vector2i] = []
+	for cell in floor_data.cells:
+		if not porch_cells.has(cell):
+			grounded.append(cell)
+	return grounded
 
 
 static func _fully_covered(roof_cells: Array[Vector2i], next_floor: FloorData) -> bool:
@@ -115,15 +129,16 @@ static func _emit_downspouts(
 		var elbow_bottom: float = elbow_top - depth
 
 		_emit_prism(accumulator, slot, material,
-			spout.head - across, spout.head + across, depth, elbow_bottom, spout.top_y)
+			spout.head - across, spout.head + across, depth, elbow_bottom, spout.top_y, false, true)
 		_emit_prism(accumulator, slot, material, spout.head, spout.wall, width, elbow_bottom, elbow_top)
 		_emit_prism(accumulator, slot, material,
-			spout.wall - across, spout.wall + across, depth, bottom, elbow_top)
+			spout.wall - across, spout.wall + across, depth, bottom, elbow_top, true, true)
 
 
 static func _emit_prism(
 	accumulator: SurfaceAccumulator, slot: String, material: Material,
-	a: Vector2, b: Vector2, width: float, y0: float, y1: float
+	a: Vector2, b: Vector2, width: float, y0: float, y1: float,
+	buried_top: bool = false, buried_bottom: bool = false
 ) -> void:
 	var axis: Vector2 = b - a
 	var length: float = axis.length()
@@ -148,8 +163,10 @@ static func _emit_prism(
 			Vector3(d.y, 0.0, -d.x),
 			Vector2(0.0, height), Vector2(0.0, 0.0), Vector2(run, 0.0), Vector2(run, height))
 
-	PlanPolygon.emit_horizontal(accumulator, slot, material, corners, y1, true)
-	PlanPolygon.emit_horizontal(accumulator, slot, material, corners, y0, false)
+	var buried: int = SurfaceAccumulator.Visibility.BURIED
+	var exterior: int = SurfaceAccumulator.Visibility.EXTERIOR
+	PlanPolygon.emit_horizontal(accumulator, slot, material, corners, y1, true, 1.0, buried if buried_top else exterior)
+	PlanPolygon.emit_horizontal(accumulator, slot, material, corners, y0, false, 1.0, buried if buried_bottom else exterior)
 
 
 static func _emit(model: RoofModel, accumulator: SurfaceAccumulator) -> void:

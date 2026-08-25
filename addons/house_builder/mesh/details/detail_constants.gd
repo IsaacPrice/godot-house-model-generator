@@ -58,6 +58,10 @@ const POST_MAX_SPACING := 2.4
 
 const PORCH_CEILING_DROP := 0.08
 
+## Drop from the base of a storey standing over a porch down to the porch's
+## soffit, leaving room for the rim band that closes the gap.
+const PORCH_SOFFIT_DROP := 0.25
+
 const POST_ROOF_EMBED := 0.02
 
 

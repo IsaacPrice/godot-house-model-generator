@@ -32,7 +32,7 @@ single `ArrayMesh`:
    - `WallDetailBuilder.build` — window / door / garage dressing per opening
 3. `FoundationBuilder.build` — foundation ring and post pads, ground floor only
 4. `PorchBuilder.roof_cells(...)` — porch cells join the lowest floor's roof
-   footprint, *before* the roof is built
+   footprint, *before* the roof is built (minus any the storey above covers)
 5. `RoofBuilder.build` — roofs for every floor, plus gutters and downspouts
 6. `PorchBuilder.build` — deck, posts, railings, stairs, ceiling, perimeter band
 7. `DormerBuilder` / `ChimneyBuilder` — roof details, querying the returned roof
@@ -152,12 +152,61 @@ all hung from **one flat ceiling height** — deliberately not mirroring the roo
 pitch. The height is the lowest point the roof reaches anywhere over the porch,
 minus a clearance.
 
+A porch's cover can be a roof *or* the storey above it. `_build_cover_context`
+splits the porch region against the upper floor's wall loops and returns one entry
+per part: the parts under a roof take their ceiling from
+`RoofSurface.min_height_over_region`, the parts under a storey take
+`floor_top - PORCH_SOFFIT_DROP` and get a soffit plus a solid rim band closing the
+gap up to the storey's base. Posts read the height of whichever region they stand
+in, so one porch can be half roof-ceilinged and half soffited.
+
+`RoofBuilder` never generates a roof over a porch bay that the storey above covers
+— the bay is dropped from `roof_cells` *before* generation rather than generated
+and clipped, which is what stopped the old eave-and-gutter slivers wrapping the
+upper walls. Downspouts follow the same rule: `_grounded_cells` keeps them off any
+wall standing over a porch, because there is no ground under it to run to.
+
 Every deck-level post is placed by **one plan pass over the whole porch**, not per
 run. A post's role (CORNER, END, INTERMEDIATE) must not depend on which run reached
 it first. A corner post goes at the intersection of the two runs' post lines, so
 both runs derive the same point and convex *and* reflex corners get exactly one post.
 Nudging each end post back along its own run instead only coincides at convex corners
 and splits reflex ones in two.
+
+## Mesh optimization
+
+Every face is emitted with a **visibility class**, and the bake keeps a chosen
+subset. `HouseData.mesh_optimization` picks it:
+
+| Mode | Keeps | Drops |
+| --- | --- | --- |
+| `NONE` | everything | — |
+| `DROP_BURIED` | `EXTERIOR`, `INTERIOR` | faces sealed inside another solid |
+| `EXTERIOR_ONLY` | `EXTERIOR` | the above, plus faces only an interior camera sees |
+
+`BURIED` means *geometrically enclosed by other geometry* — a baluster's ends
+inside the rails, a window jamb's underside on its sill, a downspout's foot below
+grade. `INTERIOR` means *bounds the space inside the house* — wall ring inner
+runs, corner-post faces flush with them, back-side window panes.
+
+Nothing is deleted from the builders. Classification happens at the emit call and
+the accumulator filters; adding interiors later means keeping `INTERIOR` rather
+than rewriting geometry. `BoxBuilder.build` takes two face masks for this, and
+`BoxBuilder.face_toward` maps a plan direction onto the right one so callers can
+work in their own `(along, normal)` frame.
+
+Only tag what is *structurally* enclosed. What remains after `EXTERIOR_ONLY` is
+mostly **occlusion** — one solid hiding another at most viewing angles, like the
+gutter trough under the roof edge — which is view-dependent and deliberately not
+tagged.
+
+`tests/mesh_optimization_test.gd` is the safety net: it ray-casts each example
+house from a dome of exterior eye points above grade and asserts **no `BURIED`
+face is reachable**. It has already caught two wrong tags (window frames stand
+`FRAME_DEPTH` proud of the siding, so their tops are under open sky, not under the
+wall). Build the trimesh with `backface_collision = true` — the default lets rays
+escape through the far side of every solid and silently reports far too much as
+visible.
 
 ## Conventions
 
@@ -170,6 +219,8 @@ and splits reflex ones in two.
   its stored normal, consistently across every surface. `MeshChecks.check_windings`
   asserts this. Quads whose vertex order isn't statically known go through
   `PlanPolygon.oriented_quad`.
+- **Faces are classed, not deleted.** A face nobody can see is still emitted; the
+  accumulator decides whether it is baked. See *Mesh optimization*.
 - **No inline magic numbers** in the roof or detail subsystems. Every tolerance lives
   in `RoofConstants` or `DetailConstants`.
 - **Every user-tunable value is an `@export` on `HouseData`**, wired into

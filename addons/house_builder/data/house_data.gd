@@ -250,6 +250,28 @@ enum FoundationMode { KEEP, LOWER }
 @export_range(0.0, 16.0, 0.05) var window_glow_energy: float = 2.0
 
 
+enum MeshOptimization { NONE, DROP_BURIED, EXTERIOR_ONLY }
+
+## Which faces the baked mesh keeps. NONE bakes every face the builders
+## emit. DROP_BURIED removes only faces sealed inside another solid, which
+## no camera can reach from anywhere - the interior shell survives intact.
+## EXTERIOR_ONLY additionally removes the faces that only an interior camera
+## could see (wall cavities, back-side window panes), for houses that are
+## never entered. Nothing is deleted from the builders either way, so adding
+## interiors later is a matter of changing this setting.
+@export var mesh_optimization: MeshOptimization = MeshOptimization.NONE
+
+
+func accumulator() -> SurfaceAccumulator:
+	match mesh_optimization:
+		MeshOptimization.EXTERIOR_ONLY:
+			return SurfaceAccumulator.new(SurfaceAccumulator.KEEP_EXTERIOR)
+		MeshOptimization.DROP_BURIED:
+			return SurfaceAccumulator.new(SurfaceAccumulator.KEEP_REACHABLE)
+		_:
+			return SurfaceAccumulator.new(SurfaceAccumulator.KEEP_ALL)
+
+
 func add_floor(data: FloorData):
 	floors.append(data)
 	floors.sort_custom(_sort_by_level)

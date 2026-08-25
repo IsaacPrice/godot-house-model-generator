@@ -361,7 +361,26 @@ func _test_door_and_garage_mesh() -> void:
 
 	_check("door_garage_mesh", "door slab and panels face outward", MeshChecks.facing_triangle_count(mesh, "door", Vector3(0, 0, 1)) == 2 + 4 * 2)
 
-	_check("door_garage_mesh", "garage panel fronts", MeshChecks.facing_triangle_count(mesh, "garage_door", Vector3(0, 0, 1)) == DetailConstants.GARAGE_PANEL_COUNT * 2)
+	var count: int = DetailConstants.GARAGE_PANEL_COUNT
+	var gap: float = DetailConstants.GARAGE_PANEL_GAP
+	var slab_out: float = 2.0 + 0.1 - DetailConstants.DOOR_SLAB_INSET
+	var slab_in: float = slab_out - DetailConstants.DOOR_SLAB_THICKNESS
+	var panel_run: float = 3.6 - 2.0 * DetailConstants.FRAME_WIDTH
+	var panel_height: float = (2.2 - DetailConstants.FRAME_WIDTH + 1.0 - (count - 1) * gap) / count
+
+	_check("door_garage_mesh", "garage door has no inward face", MeshChecks.facing_triangle_count(mesh, "garage_door", Vector3(0, 0, -1)) == 0)
+	_check("door_garage_mesh", "garage panel fronts and groove backs face outward", MeshChecks.facing_triangle_count(mesh, "garage_door", Vector3(0, 0, 1)) == (2 * count - 1) * 2)
+
+	var at_depth := func(z: float) -> Callable:
+		return func(a: Vector3, b: Vector3, c: Vector3) -> bool:
+			return absf(a.z - z) < EPS and absf(b.z - z) < EPS and absf(c.z - z) < EPS
+	var front_area: float = MeshChecks.facing_area(mesh, "garage_door", Vector3(0, 0, 1), at_depth.call(slab_out))
+	var groove_area: float = MeshChecks.facing_area(mesh, "garage_door", Vector3(0, 0, 1), at_depth.call(slab_in))
+	_check("door_garage_mesh", "panel fronts sit at the slab face (%.3f)" % front_area, absf(front_area - count * panel_run * panel_height) < 1e-2)
+	_check("door_garage_mesh", "each gap is closed by a recessed groove back (%.3f)" % groove_area, absf(groove_area - (count - 1) * panel_run * gap) < 1e-3)
+
+	_check("door_garage_mesh", "groove floors", MeshChecks.facing_triangle_count(mesh, "garage_door", Vector3(0, 1, 0)) == (count - 1) * 2)
+	_check("door_garage_mesh", "groove ceilings", MeshChecks.facing_triangle_count(mesh, "garage_door", Vector3(0, -1, 0)) == (count - 1) * 2)
 
 	var arrays: Array = MeshChecks.surface_arrays(mesh, "siding")
 	var intruder := false

@@ -23,13 +23,13 @@ static func build(house: HouseData) -> ArrayMesh:
 	if caps.is_empty():
 		return null
 
-	var accumulator := SurfaceAccumulator.new()
+	var accumulator: SurfaceAccumulator = house.accumulator()
 	var top_y: float = house.grade_y()
 	var bottom_y: float = top_y - house.sidewalk_thickness
 
 	for poly in caps:
 		PlanPolygon.emit_horizontal(accumulator, SLOT_SIDEWALK, house.sidewalk_material, poly, top_y, true)
-		PlanPolygon.emit_horizontal(accumulator, SLOT_SIDEWALK, house.sidewalk_material, poly, bottom_y, false)
+		PlanPolygon.emit_horizontal(accumulator, SLOT_SIDEWALK, house.sidewalk_material, poly, bottom_y, false, 1.0, SurfaceAccumulator.Visibility.BURIED)
 
 	for poly in regions["outers"]:
 		_emit_skirt(accumulator, house, poly, bottom_y, top_y, false)

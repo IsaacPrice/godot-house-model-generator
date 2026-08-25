@@ -21,16 +21,21 @@ static func build(house: HouseData, opening: Dictionary, accumulator: SurfaceAcc
 	var depth_out: float = half_thickness + DetailConstants.FRAME_DEPTH
 	var frame_material: Material = house.window_frame_material
 
-	_box(accumulator, frame_material, a, along, normal, 0.0, frame, depth_in, depth_out, bottom_y, top_y)
-	_box(accumulator, frame_material, a, along, normal, width - frame, width, depth_in, depth_out, bottom_y, top_y)
-	_box(accumulator, frame_material, a, along, normal, frame, width - frame, depth_in, depth_out, top_y - frame, top_y)
-	_box(accumulator, frame_material, a, along, normal, frame, width - frame, depth_in, depth_out, bottom_y, bottom_y + frame)
+	var lining: int = BoxBuilder.Face.TOP | BoxBuilder.Face.BOTTOM
+	var jamb_ends: int = BoxBuilder.face_toward(along) | BoxBuilder.face_toward(-along)
+	var inward: int = BoxBuilder.face_toward(-normal)
+
+	_box(accumulator, frame_material, a, along, normal, 0.0, frame, depth_in, depth_out, bottom_y, top_y, BoxBuilder.Face.BOTTOM, inward)
+	_box(accumulator, frame_material, a, along, normal, width - frame, width, depth_in, depth_out, bottom_y, top_y, BoxBuilder.Face.BOTTOM, inward)
+	_box(accumulator, frame_material, a, along, normal, frame, width - frame, depth_in, depth_out, top_y - frame, top_y, jamb_ends, inward)
+	_box(accumulator, frame_material, a, along, normal, frame, width - frame, depth_in, depth_out, bottom_y, bottom_y + frame, BoxBuilder.Face.BOTTOM | jamb_ends, inward)
 
 	_box(
 		accumulator, frame_material, a, along, normal,
 		-DetailConstants.SILL_SIDE_EXTEND, width + DetailConstants.SILL_SIDE_EXTEND,
 		0.0, depth_out + DetailConstants.SILL_PROJECTION,
-		bottom_y - DetailConstants.SILL_THICKNESS, bottom_y
+		bottom_y - DetailConstants.SILL_THICKNESS, bottom_y,
+		inward
 	)
 
 	var glass_a: Vector2 = a + along * frame
@@ -45,24 +50,25 @@ static func build(house: HouseData, opening: Dictionary, accumulator: SurfaceAcc
 	match opening["detail"].style:
 		WallDetail.WindowStyle.SINGLE:
 			var mid_y: float = (glass_bottom + glass_top) * 0.5
-			_box(accumulator, frame_material, a, along, normal, frame, width - frame, -bar_out, bar_out, mid_y - half_bar, mid_y + half_bar)
+			_box(accumulator, frame_material, a, along, normal, frame, width - frame, -bar_out, bar_out, mid_y - half_bar, mid_y + half_bar, jamb_ends, inward)
 		WallDetail.WindowStyle.WIDE:
 			var mid_y: float = (glass_bottom + glass_top) * 0.5
-			_box(accumulator, frame_material, a, along, normal, frame, width - frame, -bar_out, bar_out, mid_y - half_bar, mid_y + half_bar)
+			_box(accumulator, frame_material, a, along, normal, frame, width - frame, -bar_out, bar_out, mid_y - half_bar, mid_y + half_bar, jamb_ends, inward)
 			for third in [1.0, 2.0]:
 				var s: float = frame + glass_width * third / 3.0
-				_box(accumulator, frame_material, a, along, normal, s - half_bar, s + half_bar, -bar_out, bar_out, glass_bottom, glass_top)
+				_box(accumulator, frame_material, a, along, normal, s - half_bar, s + half_bar, -bar_out, bar_out, glass_bottom, glass_top, lining, inward)
 
 
 static func _box(
 	accumulator: SurfaceAccumulator, material: Material,
 	origin: Vector2, along: Vector2, normal: Vector2,
 	s0: float, s1: float, d0: float, d1: float, y0: float, y1: float,
+	buried_faces: int = 0, interior_faces: int = 0,
 	slot: String = SLOT_FRAME
 ) -> void:
 	var p0: Vector2 = origin + along * s0 + normal * d0
 	var p1: Vector2 = origin + along * s1 + normal * d1
-	BoxBuilder.build(accumulator, slot, material, p0, p1, y0, y1)
+	BoxBuilder.build(accumulator, slot, material, p0, p1, y0, y1, buried_faces, interior_faces)
 
 
 static func _pane(
@@ -87,5 +93,6 @@ static func _pane(
 		Vector3(a.x, y1, a.y),
 		Vector3(a.x, y0, a.y),
 		Vector3(-normal.x, 0, -normal.y),
-		Vector2(width, height), Vector2(width, 0), Vector2(0, 0), Vector2(0, height)
+		Vector2(width, height), Vector2(width, 0), Vector2(0, 0), Vector2(0, height),
+		SurfaceAccumulator.Visibility.INTERIOR
 	)

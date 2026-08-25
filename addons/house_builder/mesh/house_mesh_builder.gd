@@ -8,7 +8,7 @@ static func build(house: HouseData) -> ArrayMesh:
 
 
 static func build_with_roof_models(house: HouseData) -> Dictionary:
-	var accumulator := SurfaceAccumulator.new()
+	var accumulator: SurfaceAccumulator = house.accumulator()
 
 	if house.floors.is_empty():
 		return {"mesh": accumulator.commit(), "roof_models": [] as Array[Dictionary]}
@@ -23,17 +23,19 @@ static func build_with_roof_models(house: HouseData) -> Dictionary:
 		var openings: Array[Dictionary] = WallOpenings.collect(house, floor_data, floor_base_y, floor_index == 0)
 		if floor_index == 0:
 			ground_openings = openings
-		WallBuilder.build(house, floor_data, floor_base_y, accumulator, openings, floor_index == 0)
+		var floor_below: FloorData = house.floors[floor_index - 1] if floor_index > 0 else null
+		WallBuilder.build(house, floor_data, floor_base_y, accumulator, openings, floor_index == 0, floor_below)
 		WallDetailBuilder.build(house, openings, accumulator)
 		floor_base_y += floor_data.height
 		floor_infos.append({"floor_data": floor_data, "base_y": floor_base_y - floor_data.height, "top_y": floor_base_y})
 
 	FoundationBuilder.build(house, house.floors[0], accumulator, ground_reaching_posts, ground_openings)
 
-	floor_infos[0]["roof_cells"] = PorchBuilder.roof_cells(house, house.floors[0])
+	var floor_above_ground: FloorData = house.floors[1] if house.floors.size() > 1 else null
+	floor_infos[0]["roof_cells"] = PorchBuilder.roof_cells(house, house.floors[0], floor_above_ground)
 	var roof_models: Array[Dictionary] = RoofBuilder.build(house, floor_infos, accumulator)
 
-	PorchBuilder.build(house, house.floors[0], accumulator, roof_models)
+	PorchBuilder.build(house, house.floors[0], accumulator, roof_models, floor_above_ground)
 	for floor_data in house.floors:
 		DormerBuilder.build(house, floor_data, roof_models, accumulator)
 		ChimneyBuilder.build(house, floor_data, roof_models, accumulator)
