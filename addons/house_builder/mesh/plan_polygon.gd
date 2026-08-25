@@ -6,13 +6,13 @@ extends RefCounted
 static func emit(
 	accumulator: SurfaceAccumulator, slot: String, material: Material,
 	points: PackedVector3Array, uvs: PackedVector2Array, normal: Vector3,
-	convex: bool = false
+	convex: bool = false, visibility: int = SurfaceAccumulator.Visibility.EXTERIOR
 ) -> void:
 	if points.size() < 3:
 		return
 
 	if convex or points.size() == 3:
-		accumulator.add_polygon(slot, material, points, normal, uvs)
+		accumulator.add_polygon(slot, material, points, normal, uvs, visibility)
 		return
 
 	var plan := PackedVector2Array()
@@ -30,7 +30,7 @@ static func emit(
 		uvs.reverse()
 	var indices: PackedInt32Array = Geometry2D.triangulate_polygon(plan)
 	if indices.is_empty():
-		accumulator.add_polygon(slot, material, points, normal, uvs)
+		accumulator.add_polygon(slot, material, points, normal, uvs, visibility)
 		return
 
 	var desired: float = signf(normal.y)
@@ -49,28 +49,31 @@ static func emit(
 			slot, material,
 			PackedVector3Array([points[ia], points[ib], points[ic]]),
 			normal,
-			PackedVector2Array([uvs[ia], uvs[ib], uvs[ic]])
+			PackedVector2Array([uvs[ia], uvs[ib], uvs[ic]]),
+			visibility
 		)
 
 
 static func oriented_quad(
 	accumulator: SurfaceAccumulator, slot: String, material: Material,
 	a: Vector3, b: Vector3, c: Vector3, d: Vector3, normal: Vector3,
-	uv_a: Vector2, uv_b: Vector2, uv_c: Vector2, uv_d: Vector2
+	uv_a: Vector2, uv_b: Vector2, uv_c: Vector2, uv_d: Vector2,
+	visibility: int = SurfaceAccumulator.Visibility.EXTERIOR
 ) -> void:
 	if (c - a).cross(b - a).dot(normal) <= 0.0:
-		accumulator.add_quad(slot, material, a, b, c, d, normal, uv_a, uv_b, uv_c, uv_d)
+		accumulator.add_quad(slot, material, a, b, c, d, normal, uv_a, uv_b, uv_c, uv_d, visibility)
 	else:
-		accumulator.add_quad(slot, material, a, d, c, b, normal, uv_a, uv_d, uv_c, uv_b)
+		accumulator.add_quad(slot, material, a, d, c, b, normal, uv_a, uv_d, uv_c, uv_b, visibility)
 
 
 static func emit_horizontal(
 	accumulator: SurfaceAccumulator, slot: String, material: Material,
-	polygon: PackedVector2Array, y: float, facing_up: bool, uv_scale: float = 1.0
+	polygon: PackedVector2Array, y: float, facing_up: bool, uv_scale: float = 1.0,
+	visibility: int = SurfaceAccumulator.Visibility.EXTERIOR
 ) -> void:
 	var points := PackedVector3Array()
 	var uvs := PackedVector2Array()
 	for p in polygon:
 		points.append(Vector3(p.x, y, p.y))
 		uvs.append(p * uv_scale)
-	emit(accumulator, slot, material, points, uvs, Vector3.UP if facing_up else Vector3.DOWN)
+	emit(accumulator, slot, material, points, uvs, Vector3.UP if facing_up else Vector3.DOWN, false, visibility)

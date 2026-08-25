@@ -15,7 +15,10 @@ enum PostRole { INTERMEDIATE, END, CORNER }
 const EPS := 1e-3
 
 
-static func build(house: HouseData, floor_data: FloorData, accumulator: SurfaceAccumulator, roof_models: Array[Dictionary]) -> void:
+static func build(
+	house: HouseData, floor_data: FloorData, accumulator: SurfaceAccumulator,
+	roof_models: Array[Dictionary], upper_floor: FloorData = null
+) -> void:
 	var cell_size: float = house.level_cell_size
 	var valid_cells: Array[Vector2i] = _valid_porch_cells(floor_data, true)
 	if valid_cells.is_empty():
@@ -23,21 +26,22 @@ static func build(house: HouseData, floor_data: FloorData, accumulator: SurfaceA
 
 	var deck_top: float = -DetailConstants.PORCH_DROP
 	var runs: Array[Dictionary] = _open_runs(floor_data, valid_cells, cell_size)
-	var roof_context: Dictionary = {}
-	if house.porch_has_roof:
-		roof_context = _build_roof_context(house, floor_data, valid_cells, cell_size, roof_models)
+	var cover: Dictionary = _build_cover_context(house, floor_data, upper_floor, valid_cells, cell_size, roof_models)
 
 	_emit_deck(house, accumulator, valid_cells, cell_size, deck_top, runs)
-	_emit_posts_and_railings(house, accumulator, runs, deck_top, roof_context)
-	if not roof_context.is_empty():
-		_emit_ceiling(house, accumulator, roof_context)
-		_emit_perimeter_band(house, accumulator, runs, roof_context)
+	_emit_posts_and_railings(house, accumulator, runs, deck_top, cover)
+	if not cover.is_empty():
+		_emit_ceiling(house, accumulator, cover)
+		_emit_perimeter_band(house, accumulator, runs, cover)
 
 
-static func roof_cells(house: HouseData, floor_data: FloorData) -> Array[Vector2i]:
+static func roof_cells(house: HouseData, floor_data: FloorData, upper_floor: FloorData = null) -> Array[Vector2i]:
 	var cells: Array[Vector2i] = floor_data.cells.duplicate()
 	if house.porch_has_roof:
-		cells.append_array(_valid_porch_cells(floor_data, false))
+		for cell in _valid_porch_cells(floor_data, false):
+			if upper_floor != null and upper_floor.has_cell(cell):
+				continue
+			cells.append(cell)
 	return cells
 
 
@@ -124,25 +128,72 @@ static func _valid_porch_cells(floor_data: FloorData, warn: bool) -> Array[Vecto
 	return valid
 
 
-static func _build_roof_context(house: HouseData, floor_data: FloorData, valid_cells: Array[Vector2i], cell_size: float, roof_models: Array[Dictionary]) -> Dictionary:
-	var region_offset: float = house.wall_thickness * 0.5 - RoofConstants.WALL_CLIP_EMBED
-	var regions: Array[PackedVector2Array] = []
+static func _build_cover_context(
+	house: HouseData, floor_data: FloorData, upper_floor: FloorData,
+	valid_cells: Array[Vector2i], cell_size: float, roof_models: Array[Dictionary]
+) -> Dictionary:
+	var half_thickness: float = house.wall_thickness * 0.5
+	var region_offset: float = half_thickness - RoofConstants.WALL_CLIP_EMBED
+	var uncovered: Array[PackedVector2Array] = []
 	for loop in Footprint.trace_loops(valid_cells, cell_size):
-		regions.append_array(Geometry2D.offset_polygon(loop.points, region_offset, Geometry2D.JOIN_MITER))
+		uncovered.append_array(Geometry2D.offset_polygon(loop.points, region_offset, Geometry2D.JOIN_MITER))
 
-	var min_y: float = INF
-	for region in regions:
-		min_y = minf(min_y, RoofSurface.min_height_over_region(roof_models, region, floor_data.level))
-	if min_y == INF:
-		push_warning("House builder: porch roof skipped - no roof surface above the porch.")
+	var floor_top_y: float = floor_data.height
+	var regions: Array[Dictionary] = []
+
+	if upper_floor != null:
+		for upper_loop in Footprint.trace_loops(upper_floor.cells, cell_size):
+			var cover := PackedVector2Array()
+			for k in range(upper_loop.size()):
+				cover.append(upper_loop.corner_offset(k, half_thickness))
+
+			var remaining: Array[PackedVector2Array] = []
+			for part in uncovered:
+				for piece in Geometry2D.intersect_polygons(part, cover):
+					if Geometry2D.is_polygon_clockwise(piece):
+						continue
+					regions.append({
+						"polygon": piece,
+						"ceiling_y": floor_top_y - DetailConstants.PORCH_SOFFIT_DROP,
+						"covered": true,
+					})
+				for piece in Geometry2D.clip_polygons(part, cover):
+					if Geometry2D.is_polygon_clockwise(piece):
+						continue
+					remaining.append(piece)
+			uncovered = remaining
+
+	if house.porch_has_roof:
+		var missing_roof: bool = false
+		for part in uncovered:
+			var min_y: float = RoofSurface.min_height_over_region(roof_models, part, floor_data.level)
+			if min_y == INF:
+				missing_roof = true
+				continue
+			regions.append({
+				"polygon": part,
+				"ceiling_y": min_y - DetailConstants.PORCH_CEILING_DROP,
+				"covered": false,
+			})
+		if missing_roof:
+			push_warning("House builder: porch ceiling skipped - no roof surface above part of the porch.")
+
+	if regions.is_empty():
 		return {}
 
 	return {
-		"models": roof_models,
-		"level": floor_data.level,
 		"regions": regions,
-		"ceiling_y": min_y - DetailConstants.PORCH_CEILING_DROP,
+		"upper_floor": upper_floor,
+		"floor_top_y": floor_top_y,
+		"soffit_y": _soffit_y(house, roof_models, floor_data.level),
 	}
+
+
+static func _ceiling_at(cover: Dictionary, point: Vector2) -> float:
+	for region in cover["regions"]:
+		if Geometry2D.is_point_in_polygon(point, region["polygon"]):
+			return region["ceiling_y"]
+	return -INF
 
 
 static func _open_runs(floor_data: FloorData, valid_cells: Array[Vector2i], cell_size: float) -> Array[Dictionary]:
@@ -268,13 +319,17 @@ static func _union_into(polys: Array[PackedVector2Array], rect: PackedVector2Arr
 	polys.append(rect)
 
 
-static func _emit_ceiling(house: HouseData, accumulator: SurfaceAccumulator, roof_context: Dictionary) -> void:
-	for region in roof_context["regions"]:
-		PlanPolygon.emit_horizontal(accumulator, SLOT_UNDERLAYMENT, house.roof_underlayment_material, region, roof_context["ceiling_y"], false)
+static func _emit_ceiling(house: HouseData, accumulator: SurfaceAccumulator, cover: Dictionary) -> void:
+	for region in cover["regions"]:
+		PlanPolygon.emit_horizontal(
+			accumulator, SLOT_UNDERLAYMENT, house.roof_underlayment_material,
+			region["polygon"], region["ceiling_y"], false
+		)
 
-static func _soffit_y(house: HouseData, roof_context: Dictionary) -> float:
-	for entry in roof_context["models"]:
-		if entry["floor_level"] != roof_context["level"]:
+
+static func _soffit_y(house: HouseData, roof_models: Array[Dictionary], level: int) -> float:
+	for entry in roof_models:
+		if entry["floor_level"] != level:
 			continue
 		var model: RoofModel = entry["model"]
 		for edge in model.edges:
@@ -283,39 +338,70 @@ static func _soffit_y(house: HouseData, roof_context: Dictionary) -> float:
 	return -INF
 
 
-static func _emit_perimeter_band(house: HouseData, accumulator: SurfaceAccumulator, runs: Array[Dictionary], roof_context: Dictionary) -> void:
-	var bottom_y: float = _soffit_y(house, roof_context)
-	var top_y: float = roof_context["ceiling_y"] + DetailConstants.POST_ROOF_EMBED
-	if bottom_y == -INF or top_y <= bottom_y + EPS:
-		return
+static func _emit_perimeter_band(house: HouseData, accumulator: SurfaceAccumulator, runs: Array[Dictionary], cover: Dictionary) -> void:
+	var cell_size: float = house.level_cell_size
+	var half_thickness: float = house.wall_thickness * 0.5
+	var floor_top_y: float = cover["floor_top_y"]
+	var soffit_y: float = cover["soffit_y"]
 
 	for run in runs:
 		var d: Vector2 = run["dir"]
 		var normal: Vector2 = run["normal"]
 		var start: Vector2 = run["start"]
-		var length: float = run["edges"].size() * house.level_cell_size
-		var end: Vector2 = start + d * length
 
-		for side in [1.0, -1.0]:
-			PlanPolygon.oriented_quad(
+		for band in _split_by_cover(run, cell_size, cover):
+			var p0: Vector2 = band["p0"]
+			var p1: Vector2 = band["p1"]
+			var bottom_y: float = soffit_y
+			var top_y: float = floor_top_y
+			if band["covered"]:
+				bottom_y = floor_top_y - DetailConstants.PORCH_SOFFIT_DROP
+			else:
+				var probe: Vector2 = (p0 + p1) * 0.5 - normal * (cell_size * 0.25)
+				top_y = _ceiling_at(cover, probe) + DetailConstants.POST_ROOF_EMBED
+			if bottom_y == -INF or top_y == -INF or top_y <= bottom_y + EPS:
+				continue
+
+			BoxBuilder.build(
 				accumulator, SLOT_TRIM, house.trim_material,
-				Vector3(start.x, bottom_y, start.y),
-				Vector3(start.x, top_y, start.y),
-				Vector3(end.x, top_y, end.y),
-				Vector3(end.x, bottom_y, end.y),
-				Vector3(normal.x * side, 0.0, normal.y * side),
-				Vector2(0, top_y - bottom_y), Vector2(0, 0),
-				Vector2(length, 0), Vector2(length, top_y - bottom_y)
+				p0 - normal * half_thickness, p1 + normal * half_thickness,
+				bottom_y, top_y,
+				BoxBuilder.Face.TOP if band["covered"] else 0
 			)
 
 
-static func _emit_posts_and_railings(house: HouseData, accumulator: SurfaceAccumulator, runs: Array[Dictionary], deck_top: float, roof_context: Dictionary) -> void:
-	var cell_size: float = house.level_cell_size
-	var post_top: float = deck_top + house.porch_railing_height
-	if roof_context.has("ceiling_y"):
-		post_top = roof_context["ceiling_y"] + DetailConstants.POST_ROOF_EMBED
+static func _split_by_cover(run: Dictionary, cell_size: float, cover: Dictionary) -> Array[Dictionary]:
+	var upper_floor: FloorData = cover["upper_floor"]
+	var d: Vector2 = run["dir"]
+	var start: Vector2 = run["start"]
+	var edges: Array[Dictionary] = run["edges"]
+	var bands: Array[Dictionary] = []
+	var group_start: int = 0
 
-	_emit_posts(house, accumulator, _plan_posts(house, runs, cell_size), deck_top, post_top)
+	for k in range(1, edges.size() + 1):
+		var covered: bool = upper_floor != null and upper_floor.has_cell(edges[group_start]["cell"])
+		if k < edges.size() and (upper_floor != null and upper_floor.has_cell(edges[k]["cell"])) == covered:
+			continue
+		bands.append({
+			"p0": start + d * (group_start * cell_size),
+			"p1": start + d * (k * cell_size),
+			"covered": covered,
+		})
+		group_start = k
+
+	return bands
+
+
+static func _emit_posts_and_railings(house: HouseData, accumulator: SurfaceAccumulator, runs: Array[Dictionary], deck_top: float, cover: Dictionary) -> void:
+	var cell_size: float = house.level_cell_size
+	var railing_top: float = deck_top + house.porch_railing_height
+
+	var planned: Array[Dictionary] = _plan_posts(house, runs, cell_size)
+	for entry in planned:
+		var ceiling: float = -INF if cover.is_empty() else _ceiling_at(cover, entry["center"])
+		entry["top"] = railing_top if ceiling == -INF else ceiling + DetailConstants.POST_ROOF_EMBED
+		entry["carries"] = ceiling != -INF
+	_emit_posts(house, accumulator, planned, deck_top)
 
 	for run in runs:
 		var d: Vector2 = run["dir"]
@@ -408,19 +494,23 @@ static func _add_post(planned: Array[Dictionary], merge_distance: float, center:
 	planned.append({"center": center, "role": role, "provisional": provisional})
 
 
-static func _emit_posts(house: HouseData, accumulator: SurfaceAccumulator, planned: Array[Dictionary], deck_top: float, post_top: float) -> void:
+static func _emit_posts(house: HouseData, accumulator: SurfaceAccumulator, planned: Array[Dictionary], deck_top: float) -> void:
 	var half_post: float = house.porch_post_width * 0.5
 	for entry in planned:
 		var center: Vector2 = entry["center"]
+		var post_top: float = entry["top"]
 		var base_y: float = deck_top
 		if _wants_post_base(house, entry["role"]):
 			base_y = _emit_post_base(house, accumulator, center, deck_top, post_top)
 		if post_top - base_y <= EPS:
 			continue
+		var buried: int = BoxBuilder.Face.BOTTOM
+		if entry["carries"]:
+			buried |= BoxBuilder.Face.TOP
 		BoxBuilder.build(
 			accumulator, SLOT_POST, house.porch_post_material,
 			center - Vector2(half_post, half_post), center + Vector2(half_post, half_post),
-			base_y, post_top
+			base_y, post_top, buried
 		)
 
 
@@ -481,7 +571,8 @@ static func _emit_railed_subrun(
 				BoxBuilder.build(
 					accumulator, SLOT_BALUSTER, house.porch_baluster_material,
 					center - Vector2(half_baluster, half_baluster), center + Vector2(half_baluster, half_baluster),
-					infill_bottom, infill_top
+					infill_bottom, infill_top,
+					BoxBuilder.Face.TOP | BoxBuilder.Face.BOTTOM
 				)
 		HouseData.RailingStyle.HORIZONTAL:
 			var half_rail: float = house.porch_horizontal_rail_height * 0.5

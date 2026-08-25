@@ -35,7 +35,8 @@ static func build_all(house: HouseData, accumulator: SurfaceAccumulator) -> Arra
 
 				var near: Vector2 = loop.corner_offset(i, -half_thickness)
 				var far: Vector2 = outer_point + bisector * house.corner_trim_width
-				BoxBuilder.build(accumulator, SLOT_TRIM, house.trim_material, near, far, post_base_y, top_y)
+				var interior: int = BoxBuilder.face_toward(-normal_in) | BoxBuilder.face_toward(-normal_out)
+				BoxBuilder.build(accumulator, SLOT_TRIM, house.trim_material, near, far, post_base_y, top_y, BoxBuilder.Face.TOP, interior)
 
 				if reaches_ground:
 					ground_reaching.append({"near": near, "far": far})

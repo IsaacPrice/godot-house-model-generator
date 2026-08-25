@@ -90,6 +90,12 @@ const GEOMETRY_SECTIONS: Array[Dictionary] = [
 		],
 	},
 	{
+		"title": "Mesh",
+		"slots": [
+			{ "property": "mesh_optimization", "label": "Optimization", "kind": "enum", "options": ["None", "Drop Buried", "Exterior Only"] },
+		],
+	},
+	{
 		"title": "Window Defaults",
 		"slots": [
 			{ "property": "window_single_default_width", "label": "Single Width", "min": 0.3, "max": 50.0, "step": 0.01 },

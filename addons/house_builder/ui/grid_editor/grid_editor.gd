@@ -290,7 +290,8 @@ func _toggle_gable(event: InputEventMouseButton, floor_data: FloorData) -> void:
 func _gable_cells(floor_data: FloorData) -> Array[Vector2i]:
 	var house: HouseData = _house_data()
 	if house != null and _is_lowest_floor():
-		return PorchBuilder.roof_cells(house, floor_data)
+		var upper_floor: FloorData = house.floors[1] if house.floors.size() > 1 else null
+		return PorchBuilder.roof_cells(house, floor_data, upper_floor)
 	return floor_data.cells
 
 

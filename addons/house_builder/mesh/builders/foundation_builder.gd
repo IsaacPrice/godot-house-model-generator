@@ -15,19 +15,24 @@ static func build(house: HouseData, ground_floor: FloorData, accumulator: Surfac
 		if op["detail"].type == WallDetail.DetailType.GARAGE_DOOR and op["bottom_y"] < top_y - PerforatedRing.POSITION_EPS:
 			notches.append(op)
 
+	var below_grade: bool = base_y <= house.grade_y() + PerforatedRing.POSITION_EPS
+	var cap_bottom_visibility: int = SurfaceAccumulator.Visibility.BURIED if below_grade else SurfaceAccumulator.Visibility.EXTERIOR
+
 	var loops: Array[BoundaryLoop] = Footprint.trace_loops(ground_floor.cells, house.level_cell_size)
 	for loop in loops:
 		if notches.is_empty():
 			RingGeometry.build(
 				accumulator, SLOT_FOUNDATION, house.foundation_material, loop,
 				half_thickness, half_thickness + house.foundation_overhang,
-				base_y, top_y
+				base_y, top_y, true, true,
+				SurfaceAccumulator.Visibility.INTERIOR, SurfaceAccumulator.Visibility.EXTERIOR, cap_bottom_visibility
 			)
 		else:
 			PerforatedRing.build(
 				accumulator, SLOT_FOUNDATION, house.foundation_material, loop,
 				half_thickness, half_thickness + house.foundation_overhang,
-				base_y, top_y, notches
+				base_y, top_y, notches, true, true,
+				SurfaceAccumulator.Visibility.INTERIOR, SurfaceAccumulator.Visibility.EXTERIOR, cap_bottom_visibility
 			)
 
 	var overhang: float = house.foundation_overhang

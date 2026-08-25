@@ -3,16 +3,42 @@ class_name SurfaceAccumulator
 extends RefCounted
 
 
+enum Visibility {
+	EXTERIOR = 1,
+	INTERIOR = 2,
+	BURIED = 4,
+}
+
+const KEEP_ALL := Visibility.EXTERIOR | Visibility.INTERIOR | Visibility.BURIED
+
+const KEEP_REACHABLE := Visibility.EXTERIOR | Visibility.INTERIOR
+
+const KEEP_EXTERIOR := Visibility.EXTERIOR
+
+
 var _surface_tools: Dictionary = {}
 var _materials: Dictionary = {}
+var _keep: int = KEEP_ALL
+
+
+func _init(keep: int = KEEP_ALL) -> void:
+	_keep = keep
+
+
+func keeps(visibility: int) -> bool:
+	return _keep & visibility != 0
 
 
 func add_quad(
 	slot: String, material: Material,
 	a: Vector3, b: Vector3, c: Vector3, d: Vector3, normal: Vector3,
 	uv_a: Vector2 = Vector2(0, 1), uv_b: Vector2 = Vector2(1, 1),
-	uv_c: Vector2 = Vector2(1, 0), uv_d: Vector2 = Vector2(0, 0)
+	uv_c: Vector2 = Vector2(1, 0), uv_d: Vector2 = Vector2(0, 0),
+	visibility: int = Visibility.EXTERIOR
 ) -> void:
+	if not keeps(visibility):
+		return
+
 	var st: SurfaceTool = _get_tool(slot, material)
 
 	st.set_normal(normal)
@@ -33,8 +59,12 @@ func add_quad(
 
 func add_polygon(
 	slot: String, material: Material,
-	points: PackedVector3Array, normal: Vector3, uvs: PackedVector2Array
+	points: PackedVector3Array, normal: Vector3, uvs: PackedVector2Array,
+	visibility: int = Visibility.EXTERIOR
 ) -> void:
+	if not keeps(visibility):
+		return
+
 	var st: SurfaceTool = _get_tool(slot, material)
 	st.set_normal(normal)
 	for i in range(1, points.size() - 1):
