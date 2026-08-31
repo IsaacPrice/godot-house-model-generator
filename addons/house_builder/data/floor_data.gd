@@ -16,6 +16,11 @@ extends Resource
 ## mesh (SidewalkBuilder).
 @export var sidewalk_cells: Array[Vector2i] = []
 
+## House cells whose floor is laid at grade instead of at the level's own
+## base - garage bays, so a garage door opening meets a slab rather than the
+## cut edge of the floor deck. Only meshed on the house's lowest floor.
+@export var garage_cells: Array[Vector2i] = []
+
 ## Windows/doors/garage doors on this floor's walls, plus STAIRS runs on
 ## porch boundary edges. One detail per (cell, direction) edge.
 @export var wall_details: Array[WallDetail] = []
@@ -61,6 +66,16 @@ func remove_sidewalk_cell(cell: Vector2i):
 func has_sidewalk_cell(cell: Vector2i) -> bool:
 	return sidewalk_cells.has(cell)
 
+func add_garage_cell(cell: Vector2i):
+	if !garage_cells.has(cell):
+		garage_cells.append(cell)
+
+func remove_garage_cell(cell: Vector2i):
+	garage_cells.erase(cell)
+
+func has_garage_cell(cell: Vector2i) -> bool:
+	return garage_cells.has(cell)
+
 func get_wall_detail(cell: Vector2i, direction: int) -> WallDetail:
 	for detail in wall_details:
 		if detail.covers(cell, direction):
@@ -87,6 +102,7 @@ func duplicate_data() -> FloorData:
 	copy.cells = cells.duplicate()
 	copy.porch_cells = porch_cells.duplicate()
 	copy.sidewalk_cells = sidewalk_cells.duplicate()
+	copy.garage_cells = garage_cells.duplicate()
 	for detail in wall_details:
 		copy.wall_details.append(detail.duplicate())
 	for dormer in dormers:

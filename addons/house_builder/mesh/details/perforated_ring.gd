@@ -14,11 +14,16 @@ static func build(
 	cap_bottom: bool = true, cap_top: bool = true,
 	inner_visibility: int = SurfaceAccumulator.Visibility.EXTERIOR,
 	cap_top_visibility: int = SurfaceAccumulator.Visibility.EXTERIOR,
-	cap_bottom_visibility: int = SurfaceAccumulator.Visibility.EXTERIOR
+	cap_bottom_visibility: int = SurfaceAccumulator.Visibility.EXTERIOR,
+	inner_slot: String = "", inner_material: Material = null
 ) -> void:
 	var n: int = loop.size()
 	if n < 3:
 		return
+
+	if inner_slot.is_empty():
+		inner_slot = slot
+		inner_material = material
 
 	var outer: PackedVector2Array = PackedVector2Array()
 	var inner: PackedVector2Array = PackedVector2Array()
@@ -49,16 +54,16 @@ static func build(
 			var op: Dictionary = edge_openings[k]
 			var xb_in: Vector2 = op["b"] - normal * inward
 			var xa_in: Vector2 = op["a"] - normal * inward
-			_wall_quad(accumulator, slot, material, cursor, xb_in, base_y, top_y, -normal, inner[i], d, top_y, inner_visibility)
+			_wall_quad(accumulator, inner_slot, inner_material, cursor, xb_in, base_y, top_y, -normal, inner[i], d, top_y, inner_visibility)
 			if op["bottom_y"] > base_y + POSITION_EPS:
-				_wall_quad(accumulator, slot, material, xb_in, xa_in, base_y, op["bottom_y"], -normal, inner[i], d, top_y, inner_visibility)
+				_wall_quad(accumulator, inner_slot, inner_material, xb_in, xa_in, base_y, op["bottom_y"], -normal, inner[i], d, top_y, inner_visibility)
 			if op["top_y"] < top_y - POSITION_EPS:
-				_wall_quad(accumulator, slot, material, xb_in, xa_in, op["top_y"], top_y, -normal, inner[i], d, top_y, inner_visibility)
+				_wall_quad(accumulator, inner_slot, inner_material, xb_in, xa_in, op["top_y"], top_y, -normal, inner[i], d, top_y, inner_visibility)
 			cursor = xa_in
-		_wall_quad(accumulator, slot, material, cursor, inner[i], base_y, top_y, -normal, inner[i], d, top_y, inner_visibility)
+		_wall_quad(accumulator, inner_slot, inner_material, cursor, inner[i], base_y, top_y, -normal, inner[i], d, top_y, inner_visibility)
 
 		for op in edge_openings:
-			_emit_jambs(accumulator, slot, material, op, normal, d, inward, outward, base_y, top_y)
+			_emit_jambs(accumulator, inner_slot, inner_material, op, normal, d, inward, outward, base_y, top_y)
 
 		if cap_top:
 			_emit_cap_run(accumulator, slot, material, outer[i], outer[j], inner[i], inner[j], normal, d, inward, outward, top_y, true, edge_openings, base_y, top_y, cap_top_visibility)

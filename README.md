@@ -26,6 +26,11 @@ including L-shapes and multi-storey setbacks.
   sloped rake boards, and a rake soffit that tiles into the neighbouring eave soffit
 - **Wall details** — windows, doors, and garage doors placed on cell edges, or
   dragged across a run of edges for wide garages and picture windows
+- **Door modes** — every door and garage door is static, animated, or nothing at
+  all. An animated one exports as its own node with an open/close animation and
+  moving collision: entry doors swing, garage doors tilt up into the bay
+- **Garage bays** — mark house cells whose floor sits at grade, so a garage door
+  opens onto a slab instead of the side of the ground floor
 - **Porches** — deck, posts, railings (picket / horizontal / cross-slat infill),
   descending stairs, and a flat ceiling. A roofed porch has no roof of its own:
   its cells join the main roof footprint so the eaves wrap it seamlessly
@@ -37,8 +42,14 @@ including L-shapes and multi-storey setbacks.
   mesh so they never merge into the house
 - **Window glow** — exported houses carry a `windows_lit` toggle that swaps the
   glass surface to a lit material. Purely graphical, no light nodes
-- **Primitive collision** — exported houses get box shapes derived from the house
-  data
+- **Interior shell** — floor decks and ceilings at every level boundary,
+  wallpapered wall faces, baseboards, and window/door casings with a stool.
+  The roof has a real underside and gables close from inside, so a house is
+  enclosed both ways. No partitions, stairs, or furniture — an empty house
+- **Glazing that reads both ways** — window glass is a two-pane slab with a
+  transparent material, so windows look right from inside and out
+- **Enterable collision** — exported houses get a box shell derived from the
+  house data: walls and floor decks, with doorways cut open, so you can walk in
 ## Requirements
 
 - **Godot 4.7** or newer
@@ -60,8 +71,8 @@ Copy `addons/house_builder/` into your project's `addons/` folder, then enable
 **House Builder** under *Project → Project Settings → Plugins*.
 
 If you plan to use exported houses at runtime, `addons/house_builder/runtime/`
-must ship at the same `res://` path — that's where the window-glow script lives.
-Nothing else in the addon is needed at runtime.
+must ship at the same `res://` path — that's where the window-glow and door
+scripts live. Nothing else in the addon is needed at runtime.
 
 ## Usage
 
@@ -152,7 +163,7 @@ addons/house_builder/
     roof/               pure-geometry roof subsystem (straight skeleton, generator, gutters)
   runtime/              window-glow toggle; the only non-editor code
   ui/                   the dock: house properties, floors, level editor, grid editor
-  tests/                seven headless suites
+  tests/                eleven headless suites
 docs/                   architecture notes and images
 examples/               sample houses
 materials/              PBR material resources

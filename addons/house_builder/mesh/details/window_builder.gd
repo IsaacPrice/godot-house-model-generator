@@ -77,21 +77,26 @@ static func _pane(
 ) -> void:
 	var width: float = a.distance_to(b)
 	var height: float = y1 - y0
+	var half: float = DetailConstants.GLASS_THICKNESS * 0.5
+	var a_out: Vector2 = a + normal * half
+	var b_out: Vector2 = b + normal * half
+	var a_in: Vector2 = a - normal * half
+	var b_in: Vector2 = b - normal * half
 	accumulator.add_quad(
 		SLOT_GLASS, material,
-		Vector3(a.x, y0, a.y),
-		Vector3(a.x, y1, a.y),
-		Vector3(b.x, y1, b.y),
-		Vector3(b.x, y0, b.y),
+		Vector3(a_out.x, y0, a_out.y),
+		Vector3(a_out.x, y1, a_out.y),
+		Vector3(b_out.x, y1, b_out.y),
+		Vector3(b_out.x, y0, b_out.y),
 		Vector3(normal.x, 0, normal.y),
 		Vector2(0, height), Vector2(0, 0), Vector2(width, 0), Vector2(width, height)
 	)
 	accumulator.add_quad(
 		SLOT_GLASS, material,
-		Vector3(b.x, y0, b.y),
-		Vector3(b.x, y1, b.y),
-		Vector3(a.x, y1, a.y),
-		Vector3(a.x, y0, a.y),
+		Vector3(b_in.x, y0, b_in.y),
+		Vector3(b_in.x, y1, b_in.y),
+		Vector3(a_in.x, y1, a_in.y),
+		Vector3(a_in.x, y0, a_in.y),
 		Vector3(-normal.x, 0, -normal.y),
 		Vector2(width, height), Vector2(width, 0), Vector2(0, 0), Vector2(0, height),
 		SurfaceAccumulator.Visibility.INTERIOR

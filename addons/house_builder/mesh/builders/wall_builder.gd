@@ -18,14 +18,16 @@ static func build(house: HouseData, floor_data: FloorData, floor_base_y: float, 
 				accumulator, SLOT_SIDING, house.siding_material, loop,
 				half_thickness, half_thickness, base_y, top_y, true, true,
 				SurfaceAccumulator.Visibility.INTERIOR, SurfaceAccumulator.Visibility.BURIED,
-				cap_bottom_visibility
+				cap_bottom_visibility,
+				InteriorBuilder.SLOT_WALL, house.interior_wall_material
 			)
 		else:
 			PerforatedRing.build(
 				accumulator, SLOT_SIDING, house.siding_material, loop,
 				half_thickness, half_thickness, base_y, top_y, openings, true, true,
 				SurfaceAccumulator.Visibility.INTERIOR, SurfaceAccumulator.Visibility.BURIED,
-				cap_bottom_visibility
+				cap_bottom_visibility,
+				InteriorBuilder.SLOT_WALL, house.interior_wall_material
 			)
 
 

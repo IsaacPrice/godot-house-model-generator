@@ -20,6 +20,9 @@ const SILL_THICKNESS := 0.04
 
 const SILL_SIDE_EXTEND := 0.04
 
+const GLASS_THICKNESS := 0.006
+
+
 const MUNTIN_WIDTH := 0.03
 
 const MUNTIN_DEPTH := 0.02

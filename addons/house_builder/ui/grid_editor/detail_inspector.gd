@@ -7,6 +7,7 @@ signal detail_changed
 
 const WINDOW_STYLE_LABELS: PackedStringArray = ["Single", "Wide", "Small"]
 const DOOR_STYLE_LABELS: PackedStringArray = ["Plain", "Paneled"]
+const DOOR_MODE_LABELS: PackedStringArray = ["Static", "Animated", "Open Hole"]
 
 var _content: VBoxContainer
 
@@ -71,11 +72,13 @@ func _rebuild_wall_detail(detail: WallDetail, house_cell_size: float, on_delete:
 			_add_span_spin(detail, house_cell_size, on_delete)
 			_add_spin("Width", 0.3, MAX_WIDTH, 0.01, detail.width, func(value: float): detail.width = value)
 			_add_spin("Height", 0.3, MAX_HEIGHT, 0.01, detail.height, func(value: float): detail.height = value)
+			_add_door_mode(detail, house_cell_size, on_delete, house)
 		WallDetail.DetailType.GARAGE_DOOR:
 			_add_title("Garage Door")
 			_add_span_spin(detail, house_cell_size, on_delete)
 			_add_spin("Width", 0.3, MAX_WIDTH, 0.01, detail.width, func(value: float): detail.width = value)
 			_add_spin("Height", 0.3, MAX_HEIGHT, 0.01, detail.height, func(value: float): detail.height = value)
+			_add_door_mode(detail, house_cell_size, on_delete, house)
 		WallDetail.DetailType.STAIRS:
 			_add_title("Stairs")
 			_add_span_spin(detail, house_cell_size, on_delete)
@@ -83,6 +86,15 @@ func _rebuild_wall_detail(detail: WallDetail, house_cell_size: float, on_delete:
 			_add_spin("Step Depth", 0.1, MAX_STEP_DEPTH, 0.01, detail.stair_step_depth, func(value: float): detail.stair_step_depth = value)
 			_add_checkbox("Include Railing", detail.stair_has_railing, func(value: bool): detail.stair_has_railing = value)
 	_add_delete_button(on_delete)
+
+
+func _add_door_mode(detail: WallDetail, house_cell_size: float, on_delete: Callable, house: HouseData) -> void:
+	_add_enum("Export As", DOOR_MODE_LABELS, detail.door_mode, func(index: int):
+		detail.door_mode = index
+		_rebuild_wall_detail(detail, house_cell_size, on_delete, house)
+	)
+	if detail.door_mode == WallDetail.DoorMode.ANIMATED:
+		_add_checkbox("Starts Open", detail.starts_open, func(value: bool): detail.starts_open = value)
 
 
 func _add_span_spin(detail: WallDetail, house_cell_size: float, on_delete: Callable) -> void:

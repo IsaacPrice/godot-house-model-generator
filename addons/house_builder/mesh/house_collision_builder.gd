@@ -3,23 +3,25 @@ class_name HouseCollisionBuilder
 extends RefCounted
 
 
-static func build(house: HouseData, roof_models: Array[Dictionary]) -> Array[Dictionary]:
+const RUN_EPS := 1e-3
+
+
+static func build(house: HouseData, built: Dictionary) -> Array[Dictionary]:
 	var shapes: Array[Dictionary] = []
 	if house.floors.is_empty():
 		return shapes
 
 	var cell_size: float = house.level_cell_size
-	var half_thickness: float = house.wall_thickness * 0.5
 	var foundation_base: float = house.foundation_base_y()
+	var floor_infos: Array[Dictionary] = built.get("floor_infos", [] as Array[Dictionary])
 
-	var floor_base_y: float = 0.0
-	for floor_index in range(house.floors.size()):
-		var floor_data: FloorData = house.floors[floor_index]
-		var top_y: float = floor_base_y + floor_data.height
-		var bottom_y: float = foundation_base if floor_index == 0 else floor_base_y
-		for rect in _cell_rects(floor_data.cells):
-			shapes.append(_rect_box("Floor%d" % floor_data.level, rect, cell_size, half_thickness, bottom_y, top_y))
-		floor_base_y = top_y
+	for i in range(floor_infos.size()):
+		var info: Dictionary = floor_infos[i]
+		var floor_data: FloorData = info["floor_data"]
+		var wall_base: float = foundation_base if i == 0 else info["base_y"]
+		_append_walls(shapes, house, floor_data, info["openings"], wall_base, info["top_y"])
+
+	_append_decks(shapes, house, floor_infos)
 
 	var ground_floor: FloorData = house.floors[0]
 	var porch_cells: Array[Vector2i] = []
@@ -45,7 +47,7 @@ static func build(house: HouseData, roof_models: Array[Dictionary]) -> Array[Dic
 		else:
 			shapes.append(_stair_railing_prism(railing_run, house))
 
-	var roof_faces: PackedVector3Array = _roof_faces(roof_models)
+	var roof_faces: PackedVector3Array = _roof_faces(built["roof_models"])
 	if not roof_faces.is_empty():
 		var roof_shape := ConcavePolygonShape3D.new()
 		roof_shape.set_faces(roof_faces)
@@ -53,6 +55,93 @@ static func build(house: HouseData, roof_models: Array[Dictionary]) -> Array[Dic
 		shapes.append({"name": "Roof", "shape": roof_shape, "transform": Transform3D.IDENTITY})
 
 	return shapes
+
+
+static func _append_walls(
+	shapes: Array[Dictionary], house: HouseData, floor_data: FloorData,
+	openings: Array[Dictionary], base_y: float, top_y: float
+) -> void:
+	var half: float = house.wall_thickness * 0.5
+	var name: String = "Wall%d" % floor_data.level
+
+	for loop in Footprint.trace_loops(floor_data.cells, house.level_cell_size):
+		var n: int = loop.size()
+		for i in range(n):
+			var p0: Vector2 = loop.points[i]
+			var p1: Vector2 = loop.points[(i + 1) % n]
+			var run: float = p0.distance_to(p1)
+			if run < RUN_EPS:
+				continue
+			var d: Vector2 = (p1 - p0) / run
+			var normal: Vector2 = loop.normals[i]
+
+			var cursor: float = -half
+			for cut in _wall_cuts(openings, p0, normal, d, run):
+				if cut["t0"] - cursor > RUN_EPS:
+					_append_wall_box(shapes, name, p0, d, normal, half, cursor, cut["t0"], base_y, top_y)
+				if top_y - maxf(cut["top_y"], base_y) > RUN_EPS:
+					_append_wall_box(shapes, name, p0, d, normal, half, cut["t0"], cut["t1"], maxf(cut["top_y"], base_y), top_y)
+				cursor = maxf(cursor, cut["t1"])
+			if run + half - cursor > RUN_EPS:
+				_append_wall_box(shapes, name, p0, d, normal, half, cursor, run + half, base_y, top_y)
+
+
+static func _wall_cuts(
+	openings: Array[Dictionary], p0: Vector2, normal: Vector2, d: Vector2, run: float
+) -> Array[Dictionary]:
+	var cuts: Array[Dictionary] = []
+	for op in openings:
+		var detail: WallDetail = op["detail"]
+		if not detail.is_door() or detail.door_mode == WallDetail.DoorMode.STATIC:
+			continue
+		if not (op["normal"] as Vector2).is_equal_approx(normal):
+			continue
+		var mid: Vector2 = (op["a"] + op["b"]) * 0.5
+		var t: float = (mid - p0).dot(d)
+		if t < -RUN_EPS or t > run + RUN_EPS:
+			continue
+		if (mid - (p0 + d * t)).length() > RUN_EPS:
+			continue
+		var ta: float = (op["a"] - p0).dot(d)
+		var tb: float = (op["b"] - p0).dot(d)
+		cuts.append({"t0": minf(ta, tb), "t1": maxf(ta, tb), "top_y": op["top_y"]})
+
+	cuts.sort_custom(func(x: Dictionary, y: Dictionary) -> bool: return x["t0"] < y["t0"])
+	return cuts
+
+
+static func _append_wall_box(
+	shapes: Array[Dictionary], name: String, origin: Vector2, d: Vector2, normal: Vector2,
+	half: float, t0: float, t1: float, y0: float, y1: float
+) -> void:
+	if t1 - t0 < RUN_EPS or y1 - y0 < RUN_EPS:
+		return
+	var a: Vector2 = origin + d * t0 - normal * half
+	var b: Vector2 = origin + d * t1 + normal * half
+
+	var shape := BoxShape3D.new()
+	shape.size = Vector3(absf(b.x - a.x), y1 - y0, absf(b.y - a.y))
+	var center := Vector3((a.x + b.x) * 0.5, (y0 + y1) * 0.5, (a.y + b.y) * 0.5)
+	shapes.append({"name": name, "shape": shape, "transform": Transform3D(Basis.IDENTITY, center)})
+
+
+static func _append_decks(shapes: Array[Dictionary], house: HouseData, floor_infos: Array[Dictionary]) -> void:
+	var cell_size: float = house.level_cell_size
+	for level in InteriorBuilder.deck_levels(floor_infos):
+		var tops: Dictionary = InteriorBuilder.cell_tops(house, level)
+		var by_top: Dictionary = {}
+		for cell in level["cells"]:
+			var key: float = tops[cell]
+			if not by_top.has(key):
+				by_top[key] = [] as Array[Vector2i]
+			by_top[key].append(cell)
+
+		for top_y in by_top:
+			var bottom_y: float = InteriorBuilder.deck_bottom(house, top_y, level["is_lowest"])
+			if top_y - bottom_y < RUN_EPS:
+				continue
+			for rect in _cell_rects(by_top[top_y]):
+				shapes.append(_rect_box("Deck", rect, cell_size, 0.0, bottom_y, top_y))
 
 
 static func _cell_rects(cells: Array[Vector2i]) -> Array[Rect2i]:

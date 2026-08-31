@@ -29,13 +29,16 @@ single `ArrayMesh`:
 2. Per floor:
    - `WallOpenings.collect` — resolve valid wall details into opening records
    - `WallBuilder.build` — siding ring (`PerforatedRing` when openings exist)
-   - `WallDetailBuilder.build` — window / door / garage dressing per opening
+   - `WallDetailBuilder.build` — window / door / garage dressing per opening,
+     plus the interior casing that frames it from the room side. Animated door
+     leaves are collected here as rigs instead of being baked in
 3. `FoundationBuilder.build` — foundation ring and post pads, ground floor only
-4. `PorchBuilder.roof_cells(...)` — porch cells join the lowest floor's roof
+4. `InteriorBuilder.build` — floor decks at every level boundary, and baseboards
+5. `PorchBuilder.roof_cells(...)` — porch cells join the lowest floor's roof
    footprint, *before* the roof is built (minus any the storey above covers)
-5. `RoofBuilder.build` — roofs for every floor, plus gutters and downspouts
-6. `PorchBuilder.build` — deck, posts, railings, stairs, ceiling, perimeter band
-7. `DormerBuilder` / `ChimneyBuilder` — roof details, querying the returned roof
+6. `RoofBuilder.build` — roofs for every floor, plus gutters and downspouts
+7. `PorchBuilder.build` — deck, posts, railings, stairs, ceiling, perimeter band
+8. `DormerBuilder` / `ChimneyBuilder` — roof details, querying the returned roof
    models through `RoofSurface.height_at`
 
 `SurfaceAccumulator.commit()` then bakes one named `ArrayMesh` surface per
@@ -116,7 +119,7 @@ direction**, one detail per edge.
 
 | Resource | What it addresses |
 | --- | --- |
-| `WallDetail` | WINDOW / DOOR / GARAGE_DOOR / STAIRS at `(cell, direction)` |
+| `WallDetail` | WINDOW / DOOR / GARAGE_DOOR / STAIRS at `(cell, direction)`, and for the two door types a `door_mode` |
 | `DormerData` | A boundary edge of its floor; sits on top of the roof |
 | `ChimneyData` | An occupied cell of its floor; sits on top of the roof |
 | `GableData` | An exterior wall run, marked `(cell, direction)` |
@@ -173,6 +176,134 @@ both runs derive the same point and convex *and* reflex corners get exactly one 
 Nudging each end post back along its own run instead only coincides at convex corners
 and splits reflex ones in two.
 
+## Doors
+
+A door's `door_mode` decides where its leaf ends up. The opening, its reveals,
+and both casings are built the same way in every mode — only the leaf moves.
+
+| Mode | Leaf | Collision |
+| --- | --- | --- |
+| `STATIC` | baked into the house mesh where it stands | the wall run stays solid |
+| `ANIMATED` | its own mesh under a pivot node, with an animation | its own box, moving with the pivot |
+| `NONE` | not built at all | the wall run is cut open |
+
+An animated door exports as a pivot placed at its hinge, with the leaf mesh
+carrying the **inverse** of that pivot transform:
+
+```
+Doors                        ← runtime/house_doors.gd
+  Door_0                     ← Node3D at the hinge, house-space transform T
+    Leaf                     ← MeshInstance3D, transform T⁻¹
+    StaticBody3D/CollisionShape3D
+    AnimationPlayer          ← one "open" animation, track ".:rotation"
+```
+
+The leaf mesh is built in ordinary house coordinates, exactly as the static one
+would be; `T⁻¹` cancels the pivot out again. Rotating the pivot therefore turns
+the leaf about its hinge with no vertex ever being transformed. The pivot's
+basis is `(along, up, inward)` — **inward**, not the outward wall normal, or the
+basis is left-handed and the leaf mirrors the moment it swings.
+
+Each door owns its own `AnimationPlayer` rather than sharing one under `Doors`.
+A single player can only run one animation at a time, so a shared one would
+abandon door 0 halfway through whenever door 1 was asked to move.
+
+An entry door swings inward through `door_swing_degrees`. A garage door is a
+one-piece tilt-up: a quarter turn about its head takes it from hanging in the
+opening to lying flat inside the bay. Sectional panels riding a curved rail
+would look better and need per-panel articulation; the rigid leaf needs none.
+
+Animated leaves are emitted with **no** visibility masks. A leaf that can swing
+open has no face that is reliably hidden, and its mesh is its own — the house's
+`mesh_optimization` never touches it.
+
+## The interior
+
+The inside is a shell, not a room system. There are no partitions and no stairs
+between levels — every interior surface comes from geometry the exterior shell
+already implied.
+
+`InteriorBuilder` owns two of them:
+
+- **Floor decks.** One horizontal deck per *level boundary*, not per floor: at
+  `y = 0`, at the base of every floor above the first, and at the top of the
+  last floor. A deck spans the union of the cells below and above it, so a
+  cantilevered storey still gets a floor and the storey under it still gets a
+  ceiling. Its top face is `interior_floor`, its underside `ceiling`.
+  Cells are emitted one quad at a time rather than as one merged polygon —
+  that handles donut footprints and reflex corners without ever needing
+  polygon-with-holes triangulation, and adjacent cells still weld at the bake
+  because the UVs are world-plan coordinates.
+- **Baseboards.** A run along every inner wall face, split around any opening
+  that reaches the floor and held back by the casing width, so the baseboard
+  and the door casing never fight for the same plane.
+
+The rest is emitted alongside the exterior counterpart it belongs to:
+
+| Surface | Where it comes from |
+| --- | --- |
+| `interior_wall` | the wall ring's inner runs and every opening reveal — `RingGeometry` and `PerforatedRing` take an inner slot and material |
+| `interior_trim` | baseboards, plus `InteriorCasing` per opening: legs, head, and a stool on windows |
+| `ceiling` | deck undersides, the roof's underside, and the inward face of every gable |
+
+A deck stops at the cell boundary, which is the wall's **centreline** — the wall
+straddles it, so a deck covering its own cells already reaches half a wall
+thickness past the inner face and its edge is buried in the siding. Expanding
+it outward would push the edge through to the outside.
+
+### Garage bays
+
+`FloorData.garage_cells` marks house cells whose floor is laid at grade instead
+of at the storey's own base. Without them a garage door — which already cuts
+down to `grade_y()` — opens onto the cut edge of the ground deck a metre up.
+
+The bay's top is clamped to `max(grade_y, foundation_base_y)`: a floor below the
+bottom of the foundation would hang under the sealed shell. Getting a bay that
+really sits at grade means giving the house a foundation deep enough to reach it.
+
+Deck sides are emitted per cell edge against the neighbour's **own** top, not
+just where a neighbour is missing. A cell beside a lower one gets a side face
+spanning the drop, which is what turns the bay boundary into a riser instead of
+a hole. Baseboards are cut over bay cells for the same reason the door openings
+cut them — the floor they would sit on is somewhere else.
+
+## Collision
+
+Exported collision is a **shell**, not a solid. Per floor, `HouseCollisionBuilder`
+emits one box per traced wall run (extended half a thickness past each end so
+corners close) and one box per floor deck rect, leaving the rooms hollow so a
+body can walk in. Wall runs are cut open over `ANIMATED` and `NONE` doorways and
+keep a header box above them; a `STATIC` door leaves its run solid, which is
+exactly what a shut door does.
+
+Deck heights come from `InteriorBuilder.cell_tops` / `deck_bottom` rather than
+being re-derived, so collision and geometry cannot drift — a garage bay's floor
+is at grade in both or neither.
+
+The roof stays a `ConcavePolygonShape3D` with `backface_collision = true`, which
+now matters twice: it always kept rays from escaping the far side, and it also
+stops a body inside the attic falling out through the roof.
+
+### Why the roof needed an underside
+
+Roof planes used to be one-sided: from inside, the attic was open sky. Every
+shingle plane now gets a parallel plane `roof_deck_thickness` below it, clipped
+to the wall polygon, and every gable gets an inward face. The soffit already
+closes the overhang from below and the fascia already hides the deck edge at the
+eave, so nothing else had to move.
+
+Those undersides go on the `ceiling` slot, **not** `roof_underlayment`. That slot
+is the soffit and the porch ceiling; `RoofSurface.min_height_over_region` reads it
+to hang the porch ceiling, so overloading it silently dropped the porch's ceiling
+onto the roof underside instead.
+
+### Glass reads from both sides
+
+A window's glass is a two-pane slab `DetailConstants.GLASS_THICKNESS` apart
+rather than two coincident quads. Coincident transparent panes have no stable
+draw order within a surface; separated ones do. The outer pane is `EXTERIOR` and
+the inner `INTERIOR`, so `EXTERIOR_ONLY` still bakes exactly one pane per window.
+
 ## Mesh optimization
 
 Every face is emitted with a **visibility class**, and the bake keeps a chosen
@@ -190,10 +321,14 @@ grade. `INTERIOR` means *bounds the space inside the house* — wall ring inner
 runs, corner-post faces flush with them, back-side window panes.
 
 Nothing is deleted from the builders. Classification happens at the emit call and
-the accumulator filters; adding interiors later means keeping `INTERIOR` rather
-than rewriting geometry. `BoxBuilder.build` takes two face masks for this, and
+the accumulator filters, which is what let the interior land as new `INTERIOR`
+faces rather than a rewrite. `BoxBuilder.build` takes two face masks for this, and
 `BoxBuilder.face_toward` maps a plan direction onto the right one so callers can
 work in their own `(along, normal)` frame.
+
+`EXTERIOR_ONLY` now empties whole surfaces — `interior_wall`, `interior_floor`,
+`ceiling` and `interior_trim` have no exterior faces at all. That is correct, and
+it is why the test no longer asserts every mode keeps every surface.
 
 Only tag what is *structurally* enclosed. What remains after `EXTERIOR_ONLY` is
 mostly **occlusion** — one solid hiding another at most viewing angles, like the
@@ -202,7 +337,9 @@ tagged.
 
 `tests/mesh_optimization_test.gd` is the safety net: it ray-casts each example
 house from a dome of exterior eye points above grade and asserts **no `BURIED`
-face is reachable**. It has already caught two wrong tags (window frames stand
+face is reachable**, and that no surface holding ray-reachable geometry is
+dropped by `EXTERIOR_ONLY`. `tests/interior_subsystem_test.gd` casts the mirror
+of that: rays *from inside* a sealed house, asserting none escape. It has already caught two wrong tags (window frames stand
 `FRAME_DEPTH` proud of the siding, so their tops are under open sky, not under the
 wall). Build the trimesh with `backface_collision = true` — the default lets rays
 escape through the far side of every solid and silently reports far too much as
@@ -230,7 +367,7 @@ visible.
 - **Window glow is graphical only.** No light nodes are exported. `HouseWindowLights`
   swaps the `"glass"` surface's material override to a lit material baked at export.
   A game consuming exports must ship `addons/house_builder/runtime/` at the same
-  `res://` path.
+  `res://` path — `HouseDoors` lives there too.
 - **ArrayMesh has no find-surface-by-name.** Look surfaces up by iterating
   `surface_get_name` — see `MeshChecks.find_surface`.
 

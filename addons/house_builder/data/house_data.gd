@@ -66,6 +66,21 @@ extends Resource
 ## Material used for chimney shafts and crowns.
 @export var chimney_material: Material
 
+## Material lining the interior faces of the exterior walls - the wallpaper,
+## paint, or plaster the rooms are finished with. Also used for the reveals
+## of window and door openings.
+@export var interior_wall_material: Material
+
+## Material used for the walking surface of every level's floor deck.
+@export var interior_floor_material: Material
+
+## Material used for the ceiling hung under each level's floor deck.
+@export var ceiling_material: Material
+
+## Material used for interior trim - baseboards, the casings framing windows
+## and doors from inside, and window stools.
+@export var interior_trim_material: Material
+
 ## Size of one floor/level cell, in meters.
 @export_range(1.0, 4.0, 0.01, "suffix:m") var level_cell_size: float = 2.0
 
@@ -90,6 +105,25 @@ extends Resource
 
 ## Distance the foundation projects outward beyond the exterior wall face.
 @export_range(0.0, 0.5, 0.01, "suffix:m") var foundation_overhang: float = 0.05
+
+## Thickness of the floor deck laid at every level boundary. Its top face is
+## the level above's floor; its underside is the level below's ceiling.
+@export_range(0.05, 1.0, 0.01, "suffix:m") var interior_floor_thickness: float = 0.2
+
+## Height of the baseboard running along the inside of every exterior wall.
+## 0 builds no baseboards.
+@export_range(0.0, 0.6, 0.01, "suffix:m") var interior_base_trim_height: float = 0.11
+
+## Depth the baseboard projects inward from the interior wall face.
+@export_range(0.005, 0.2, 0.005, "suffix:m") var interior_base_trim_depth: float = 0.02
+
+## Width of the flat casing band framing windows and doors from inside.
+## 0 builds no interior casings.
+@export_range(0.0, 0.4, 0.005, "suffix:m") var interior_casing_width: float = 0.07
+
+## Depth the interior casing and window stool project inward from the
+## interior wall face.
+@export_range(0.005, 0.2, 0.005, "suffix:m") var interior_casing_depth: float = 0.02
 
 
 enum RailingStyle { PICKET, HORIZONTAL, CROSS }
@@ -186,6 +220,11 @@ enum FoundationMode { KEEP, LOWER }
 ## meters: u along the eave, v up the slope).
 @export_range(0.05, 10.0, 0.05) var roof_uv_scale: float = 1.0
 
+## Thickness of the roof deck. Each roof plane gets an underside this far
+## below it, so the roof reads as a solid from inside the attic instead of
+## as a one-sided shell.
+@export_range(0.02, 0.5, 0.01, "suffix:m") var roof_deck_thickness: float = 0.15
+
 
 ## Trough profile. NONE builds no gutters at all.
 @export var gutter_style: RoofGutters.Style = RoofGutters.Style.K_STYLE
@@ -226,6 +265,19 @@ enum FoundationMode { KEEP, LOWER }
 
 @export_range(0.3, 50.0, 0.01, "suffix:m") var garage_door_default_width: float = 1.5
 @export_range(0.3, 20.0, 0.01, "suffix:m") var garage_door_default_height: float = 2.2
+
+## Export mode newly placed doors and garage doors start on. See
+## WallDetail.door_mode - STATIC bakes the leaf into the mesh, ANIMATED gives
+## it its own node and animation, NONE leaves the opening empty.
+@export var door_default_mode: WallDetail.DoorMode = WallDetail.DoorMode.STATIC
+@export var garage_door_default_mode: WallDetail.DoorMode = WallDetail.DoorMode.STATIC
+
+## How long an ANIMATED door takes to swing from shut to fully open.
+@export_range(0.1, 10.0, 0.05, "suffix:s") var door_open_duration: float = 0.9
+
+## How far an ANIMATED entry door swings inward when opened. Garage doors
+## ignore this - they tilt up through a quarter turn onto their head.
+@export_range(15.0, 175.0, 1.0, "suffix:\u00b0") var door_swing_degrees: float = 95.0
 
 
 @export_range(0.05, 0.4, 0.005, "suffix:m") var stair_default_step_height: float = 0.18

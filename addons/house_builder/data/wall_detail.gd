@@ -4,6 +4,7 @@ extends Resource
 
 
 enum DetailType { WINDOW, DOOR, GARAGE_DOOR, STAIRS }
+enum DoorMode { STATIC, ANIMATED, NONE }
 enum EdgeDir { NORTH, EAST, SOUTH, WEST }
 enum WindowStyle { SINGLE, WIDE, SMALL }
 enum DoorStyle { PLAIN, PANELED }
@@ -69,6 +70,17 @@ const SPAN_STEP := {
 ## own railing style/height/materials. Unused otherwise.
 @export var stair_has_railing: bool = false
 
+## DOOR / GARAGE_DOOR: how the leaf is exported. STATIC bakes it into the
+## house mesh where it stands. ANIMATED exports it as its own node with an
+## open/close animation and its own collision. NONE builds no leaf at all,
+## leaving a lined but empty opening. Unused otherwise.
+@export var door_mode: DoorMode = DoorMode.STATIC
+
+## DOOR / GARAGE_DOOR: whether an ANIMATED door starts in its open position.
+## STATIC doors are always closed - freezing one open would mean baking a
+## rotated leaf into the shared mesh. Unused otherwise.
+@export var starts_open: bool = false
+
 
 static func create(detail_type: DetailType, detail_style: int = 0, house: HouseData = null) -> WallDetail:
 	var detail := WallDetail.new()
@@ -82,16 +94,30 @@ static func create(detail_type: DetailType, detail_style: int = 0, house: HouseD
 			detail.width = house.door_default_width if house else 1.0
 			detail.height = house.door_default_height if house else 2.1
 			detail.sill_height = 0.0
+			detail.door_mode = house.door_default_mode if house else DoorMode.STATIC
 		DetailType.GARAGE_DOOR:
 			detail.width = house.garage_door_default_width if house else 1.5
 			detail.height = house.garage_door_default_height if house else 2.2
 			detail.sill_height = 0.0
+			detail.door_mode = house.garage_door_default_mode if house else DoorMode.STATIC
 		DetailType.STAIRS:
 			detail.stair_step_height = house.stair_default_step_height if house else 0.18
 			detail.stair_step_depth = house.stair_default_step_depth if house else 0.3
 			detail.stair_has_railing = house.stair_default_has_railing if house else false
 
 	return detail
+
+
+func is_door() -> bool:
+	return type == DetailType.DOOR or type == DetailType.GARAGE_DOOR
+
+
+func has_leaf() -> bool:
+	return is_door() and door_mode != DoorMode.NONE
+
+
+func is_animated() -> bool:
+	return is_door() and door_mode == DoorMode.ANIMATED
 
 
 func spanned_cells() -> Array[Vector2i]:

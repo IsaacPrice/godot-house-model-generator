@@ -8,11 +8,16 @@ static func build(
 	cap_bottom: bool = true, cap_top: bool = true,
 	inner_visibility: int = SurfaceAccumulator.Visibility.EXTERIOR,
 	cap_top_visibility: int = SurfaceAccumulator.Visibility.EXTERIOR,
-	cap_bottom_visibility: int = SurfaceAccumulator.Visibility.EXTERIOR
+	cap_bottom_visibility: int = SurfaceAccumulator.Visibility.EXTERIOR,
+	inner_slot: String = "", inner_material: Material = null
 ) -> void:
 	var n: int = loop.size()
 	if n < 3:
 		return
+
+	if inner_slot.is_empty():
+		inner_slot = slot
+		inner_material = material
 
 	var outer: PackedVector2Array = PackedVector2Array()
 	var inner: PackedVector2Array = PackedVector2Array()
@@ -39,7 +44,7 @@ static func build(
 
 		var inner_len: float = inner[i].distance_to(inner[j])
 		accumulator.add_quad(
-			slot, material,
+			inner_slot, inner_material,
 			Vector3(inner[j].x, base_y, inner[j].y),
 			Vector3(inner[j].x, top_y, inner[j].y),
 			Vector3(inner[i].x, top_y, inner[i].y),

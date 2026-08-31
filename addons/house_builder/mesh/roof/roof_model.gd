@@ -13,6 +13,7 @@ class RoofPlane extends RefCounted:
 	var slot: String = ""
 	var material: Material
 	var convex: bool = false
+	var visibility: int = SurfaceAccumulator.Visibility.EXTERIOR
 
 
 class RoofEdge extends RefCounted:

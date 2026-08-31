@@ -34,7 +34,7 @@ static func generate(input: RoofInput) -> RoofModel:
 	if flat:
 		if not gable_indices.is_empty():
 			push_warning("RoofGenerator: gable walls ignored on a flat roof.")
-		_build_flat_cap(model, input, eave_poly, keeps, clips)
+		_build_flat_cap(model, input, eave_poly, wall_poly, keeps, clips)
 	else:
 		var skeleton: StraightSkeleton.Result = null
 		var skeleton_ok := false
@@ -55,13 +55,13 @@ static func generate(input: RoofInput) -> RoofModel:
 			gable_indices.erase(failed[0])
 
 		if skeleton_ok:
-			_build_pitched_planes(model, input, eave_poly, skeleton.faces, pitch_rad, drop_run, keeps, clips)
+			_build_pitched_planes(model, input, eave_poly, wall_poly, skeleton.faces, pitch_rad, drop_run, keeps, clips)
 			_build_gable_ends(model, input, gable_ends, eave_poly, tan_pitch, drop_run, eave_y, has_overhang, keeps, clips)
 			_classify_edges(model, input, eave_poly, skeleton.faces, tan_pitch, drop_run, keeps, clips, gable_ends)
 		else:
 			push_warning("RoofGenerator: straight skeleton unreliable for this footprint - falling back to a flat cap.")
 			model.used_fallback = true
-			_build_flat_cap(model, input, eave_poly, keeps, clips)
+			_build_flat_cap(model, input, eave_poly, wall_poly, keeps, clips)
 
 	var eave_segments: Array[Dictionary] = _eave_segments(eave_poly, keeps, clips, gable_ends)
 	for seg in eave_segments:
@@ -481,6 +481,10 @@ static func _build_gable_wall(
 			for pt in piece:
 				uvs.append(Vector2(pt.x, input.base_y - pt.y))
 			_add_vertical_plane(model, input.slot_gable, input.gable_material, wa, dir, gable["normal"], piece, uvs)
+			_add_vertical_plane(
+				model, input.slot_ceiling, input.ceiling_material,
+				wa, dir, -gable["normal"], piece, uvs,
+				SurfaceAccumulator.Visibility.INTERIOR)
 
 
 static func _build_rake_board(
@@ -550,7 +554,8 @@ static func _build_rake_soffit(
 static func _add_vertical_plane(
 	model: RoofModel, slot: String, material: Material,
 	origin: Vector2, dir: Vector2, normal: Vector2,
-	pts_ty: PackedVector2Array, uvs: PackedVector2Array
+	pts_ty: PackedVector2Array, uvs: PackedVector2Array,
+	visibility: int = SurfaceAccumulator.Visibility.EXTERIOR
 ) -> void:
 	if pts_ty.size() < 3 or absf(_signed_area(pts_ty)) < RoofConstants.MIN_FACE_AREA:
 		return
@@ -563,12 +568,13 @@ static func _add_vertical_plane(
 	for pt in pts_ty:
 		var pos: Vector2 = origin + dir * pt.x
 		points.append(Vector3(pos.x, pt.y, pos.y))
-	_add_plane(model, slot, material, points, uvs, Vector3(normal.x, 0, normal.y), true)
+	_add_plane(model, slot, material, points, uvs, Vector3(normal.x, 0, normal.y), true, visibility)
 
 
 static func _add_plane(
 	model: RoofModel, slot: String, material: Material,
-	points: PackedVector3Array, uvs: PackedVector2Array, normal: Vector3, convex: bool
+	points: PackedVector3Array, uvs: PackedVector2Array, normal: Vector3, convex: bool,
+	visibility: int = SurfaceAccumulator.Visibility.EXTERIOR
 ) -> void:
 	if points.size() < 3:
 		return
@@ -592,6 +598,7 @@ static func _add_plane(
 	plane.material = material
 	plane.normal = normal
 	plane.convex = convex
+	plane.visibility = visibility
 	plane.points = points
 	plane.uvs = uvs
 	model.planes.append(plane)
@@ -606,6 +613,7 @@ static func _plane_height(
 
 static func _build_pitched_planes(
 	model: RoofModel, input: RoofInput, eave_poly: PackedVector2Array,
+	wall_poly: PackedVector2Array,
 	faces: Array[StraightSkeleton.Face], pitch_rad: float, drop_run: float,
 	keeps: Array[PackedVector2Array], clips: Array[PackedVector2Array]
 ) -> void:
@@ -639,9 +647,26 @@ static func _build_pitched_planes(
 				plane.uvs.append(Vector2((pt - p1).dot(edge_dir), offset / cos_pitch) * input.uv_scale)
 			model.planes.append(plane)
 
+			for under_piece in Geometry2D.intersect_polygons(piece, wall_poly):
+				var under := RoofModel.RoofPlane.new()
+				under.slot = input.slot_ceiling
+				under.material = input.ceiling_material
+				under.normal = -plane.normal
+				under.convex = false
+				under.visibility = SurfaceAccumulator.Visibility.INTERIOR
+				for pt in under_piece:
+					var offset: float = line_const - pt.dot(normal2)
+					under.points.append(Vector3(
+						pt.x,
+						input.base_y + (offset - drop_run) * tan_pitch - input.deck_thickness,
+						pt.y))
+					under.uvs.append(Vector2((pt - p1).dot(edge_dir), offset / cos_pitch) * input.uv_scale)
+				model.planes.append(under)
+
 
 static func _build_flat_cap(
 	model: RoofModel, input: RoofInput, eave_poly: PackedVector2Array,
+	wall_poly: PackedVector2Array,
 	keeps: Array[PackedVector2Array], clips: Array[PackedVector2Array]
 ) -> void:
 	for piece in _clip_plan_polygon(eave_poly, keeps, clips):
@@ -664,6 +689,29 @@ static func _build_flat_cap(
 			])
 			plane.uvs = PackedVector2Array([b * input.uv_scale, a * input.uv_scale, c * input.uv_scale])
 			model.planes.append(plane)
+
+		var under_y: float = input.base_y - input.deck_thickness
+		for under_piece in Geometry2D.intersect_polygons(piece, wall_poly):
+			if _signed_area(under_piece) < 0.0:
+				under_piece.reverse()
+			var under_indices: PackedInt32Array = Geometry2D.triangulate_polygon(under_piece)
+			for i in range(0, under_indices.size(), 3):
+				var ua: Vector2 = under_piece[under_indices[i]]
+				var ub: Vector2 = under_piece[under_indices[i + 1]]
+				var uc: Vector2 = under_piece[under_indices[i + 2]]
+				var under := RoofModel.RoofPlane.new()
+				under.slot = input.slot_ceiling
+				under.material = input.ceiling_material
+				under.normal = Vector3.DOWN
+				under.convex = true
+				under.visibility = SurfaceAccumulator.Visibility.INTERIOR
+				under.points = PackedVector3Array([
+					Vector3(uc.x, under_y, uc.y),
+					Vector3(ua.x, under_y, ua.y),
+					Vector3(ub.x, under_y, ub.y),
+				])
+				under.uvs = PackedVector2Array([uc * input.uv_scale, ua * input.uv_scale, ub * input.uv_scale])
+				model.planes.append(under)
 
 
 static func _classify_edges(

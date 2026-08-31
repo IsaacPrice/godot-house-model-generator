@@ -325,7 +325,7 @@ func _test_window_mesh() -> void:
 
 	var left_jamb := func(a: Vector3, b: Vector3, c: Vector3) -> bool:
 		return absf(a.x - 2.4) < EPS and absf(b.x - 2.4) < EPS and absf(c.x - 2.4) < EPS
-	var jamb_area: float = MeshChecks.facing_area(mesh, "siding", Vector3(1, 0, 0), left_jamb)
+	var jamb_area: float = MeshChecks.facing_area(mesh, InteriorBuilder.SLOT_WALL, Vector3(1, 0, 0), left_jamb)
 	_check("window_mesh", "left jamb area %.3f" % jamb_area, absf(jamb_area - 0.2 * 1.4) < 1e-3)
 
 	var arrays: Array = MeshChecks.surface_arrays(mesh, "siding")
@@ -368,7 +368,7 @@ func _test_door_and_garage_mesh() -> void:
 	var panel_run: float = 3.6 - 2.0 * DetailConstants.FRAME_WIDTH
 	var panel_height: float = (2.2 - DetailConstants.FRAME_WIDTH + 1.0 - (count - 1) * gap) / count
 
-	_check("door_garage_mesh", "garage door has no inward face", MeshChecks.facing_triangle_count(mesh, "garage_door", Vector3(0, 0, -1)) == 0)
+	_check("door_garage_mesh", "garage door is backed from inside", MeshChecks.facing_triangle_count(mesh, "garage_door", Vector3(0, 0, -1)) == 2)
 	_check("door_garage_mesh", "garage panel fronts and groove backs face outward", MeshChecks.facing_triangle_count(mesh, "garage_door", Vector3(0, 0, 1)) == (2 * count - 1) * 2)
 
 	var at_depth := func(z: float) -> Callable:
@@ -945,6 +945,8 @@ func _test_all_details_end_to_end() -> void:
 		"window_frame", "glass", "door", "garage_door",
 		"porch_floor", "porch_railing", "porch_post", "porch_baluster", "chimney",
 		"gutter",
+		InteriorBuilder.SLOT_WALL, InteriorBuilder.SLOT_FLOOR,
+		InteriorBuilder.SLOT_CEILING, InteriorBuilder.SLOT_TRIM,
 	]:
 		_check("all_details", "slot '%s' present" % slot, MeshChecks.find_surface(mesh, slot) >= 0)
 

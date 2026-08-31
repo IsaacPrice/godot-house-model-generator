@@ -3,7 +3,7 @@ class_name GridEditor
 extends Control
 
 
-enum Tool { CELLS, PORCH, SIDEWALK, WINDOW, DOOR, GARAGE, STAIRS, DORMER, CHIMNEY, GABLE, ERASE }
+enum Tool { CELLS, PORCH, SIDEWALK, BAY, WINDOW, DOOR, GARAGE, STAIRS, DORMER, CHIMNEY, GABLE, ERASE }
 
 
 @export var grid_width: int = 10:
@@ -32,6 +32,7 @@ enum Tool { CELLS, PORCH, SIDEWALK, WINDOW, DOOR, GARAGE, STAIRS, DORMER, CHIMNE
 
 const COLOR_PORCH := Color(0.35, 0.75, 0.4, 0.55)
 const COLOR_SIDEWALK := Color(0.62, 0.62, 0.66, 0.55)
+const COLOR_BAY := Color(0.72, 0.42, 0.9, 0.45)
 const COLOR_WINDOW := Color(0.18, 0.42, 0.82)
 const COLOR_DOOR := Color(1.0, 0.62, 0.18)
 const COLOR_GARAGE := Color(0.72, 0.42, 0.9)
@@ -59,6 +60,12 @@ const DETAIL_GLYPHS := {
 	WallDetail.DetailType.DOOR: "D",
 	WallDetail.DetailType.GARAGE_DOOR: "G",
 	WallDetail.DetailType.STAIRS: "S",
+}
+
+const DOOR_MODE_GLYPHS := {
+	WallDetail.DoorMode.STATIC: "",
+	WallDetail.DoorMode.ANIMATED: "*",
+	WallDetail.DoorMode.NONE: "\u00b0",
 }
 
 const TOOL_DETAIL_TYPES := {
@@ -161,6 +168,13 @@ func _left_press(event: InputEventMouseButton, floor_data: FloorData) -> void:
 					floor_data.remove_sidewalk_cell(cell)
 				elif DetailRules.can_paint_sidewalk_cell(floor_data, cell):
 					floor_data.add_sidewalk_cell(cell)
+		Tool.BAY:
+			var cell := _mouse_to_cell(event.position)
+			if _is_inside_grid(cell):
+				if floor_data.has_garage_cell(cell):
+					floor_data.remove_garage_cell(cell)
+				elif DetailRules.can_paint_garage_cell(floor_data, cell):
+					floor_data.add_garage_cell(cell)
 		Tool.WINDOW, Tool.DOOR, Tool.GARAGE, Tool.STAIRS:
 			_start_wall_detail_drag(event, floor_data, TOOL_DETAIL_TYPES[tool])
 		Tool.DORMER:
@@ -315,7 +329,7 @@ func _place_or_edit_chimney(event: InputEventMouseButton, floor_data: FloorData)
 
 func _right_click(position: Vector2, floor_data: FloorData) -> void:
 	var tool: int = _active_tool()
-	_remove_at(position, floor_data, tool == Tool.PORCH or tool == Tool.SIDEWALK or tool == Tool.ERASE)
+	_remove_at(position, floor_data, tool == Tool.PORCH or tool == Tool.SIDEWALK or tool == Tool.BAY or tool == Tool.ERASE)
 
 
 func _remove_at(position: Vector2, floor_data: FloorData, remove_paint: bool) -> void:
@@ -344,6 +358,8 @@ func _remove_at(position: Vector2, floor_data: FloorData, remove_paint: bool) ->
 		floor_data.remove_porch_cell(cell)
 	elif remove_paint and floor_data.has_sidewalk_cell(cell):
 		floor_data.remove_sidewalk_cell(cell)
+	elif remove_paint and floor_data.has_garage_cell(cell):
+		floor_data.remove_garage_cell(cell)
 
 
 func _mouse_to_edge(mouse_pos: Vector2) -> Dictionary:
@@ -438,6 +454,9 @@ func _draw() -> void:
 			draw_rect(Rect2(origin + Vector2(cell) * cell_size, Vector2.ONE * cell_size), COLOR_PORCH)
 		for cell in floor_data.cells:
 			draw_rect(Rect2(origin + Vector2(cell) * cell_size, Vector2.ONE * cell_size), filled_color)
+		for cell in floor_data.garage_cells:
+			var legal: bool = DetailRules.can_paint_garage_cell(floor_data, cell)
+			draw_rect(Rect2(origin + Vector2(cell) * cell_size, Vector2.ONE * cell_size), COLOR_BAY if legal else Color(COLOR_ILLEGAL, 0.45))
 
 	for x in range(grid_width + 1):
 		var px := origin.x + x * cell_size
@@ -466,8 +485,9 @@ func _draw_details(floor_data: FloorData) -> void:
 	for detail in floor_data.wall_details:
 		var valid: bool = DetailRules.wall_detail_valid(detail, floor_data, is_lowest)
 		var color: Color = DETAIL_COLORS[detail.type] if valid else COLOR_ILLEGAL
+		var hollow: bool = detail.type == WallDetail.DetailType.STAIRS or not detail.has_leaf() and detail.is_door()
 		for spanned in detail.spanned_cells():
-			_draw_edge_marker(spanned, detail.direction, color, detail.type == WallDetail.DetailType.STAIRS)
+			_draw_edge_marker(spanned, detail.direction, color, hollow)
 		_draw_edge_glyph(detail, color)
 
 	for dormer in floor_data.dormers:
@@ -501,6 +521,10 @@ func _draw_hover(floor_data: FloorData) -> void:
 		Tool.SIDEWALK:
 			if _is_inside_grid(_hovered_cell):
 				var legal: bool = floor_data.has_sidewalk_cell(_hovered_cell) or DetailRules.can_paint_sidewalk_cell(floor_data, _hovered_cell)
+				draw_rect(_cell_rect(_hovered_cell), hover_color if legal else Color(COLOR_ILLEGAL, 0.25))
+		Tool.BAY:
+			if _is_inside_grid(_hovered_cell):
+				var legal: bool = floor_data.has_garage_cell(_hovered_cell) or DetailRules.can_paint_garage_cell(floor_data, _hovered_cell)
 				draw_rect(_cell_rect(_hovered_cell), hover_color if legal else Color(COLOR_ILLEGAL, 0.25))
 		Tool.WINDOW, Tool.DOOR, Tool.GARAGE, Tool.STAIRS:
 			if _hovered_edge.is_empty():
@@ -566,7 +590,7 @@ func _draw_erase_hover(floor_data: FloorData) -> void:
 		return
 	if _find_chimney(floor_data, _hovered_cell) != null:
 		_draw_chimney_marker(_hovered_cell, Color(COLOR_ILLEGAL, 0.8))
-	elif floor_data.has_porch_cell(_hovered_cell) or floor_data.has_sidewalk_cell(_hovered_cell):
+	elif floor_data.has_porch_cell(_hovered_cell) or floor_data.has_sidewalk_cell(_hovered_cell) or floor_data.has_garage_cell(_hovered_cell):
 		draw_rect(_cell_rect(_hovered_cell), Color(COLOR_ILLEGAL, 0.25))
 
 
@@ -599,6 +623,8 @@ func _draw_edge_glyph(detail: WallDetail, color: Color) -> void:
 	var glyph: String = DETAIL_GLYPHS[detail.type]
 	if glyph.is_empty():
 		return
+	if detail.is_door():
+		glyph += DOOR_MODE_GLYPHS[detail.door_mode]
 	var font_size: int = _glyph_font_size()
 	var segment := _edge_segment(detail.cell, detail.direction)
 	var into: Vector2 = -WallDetail.NORMALS[detail.direction]

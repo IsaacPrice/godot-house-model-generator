@@ -19,6 +19,10 @@ const MATERIAL_SLOTS: Array[Dictionary] = [
 	{ "property": "door_material", "label": "Door Material" },
 	{ "property": "garage_door_material", "label": "Garage Door Material" },
 	{ "property": "chimney_material", "label": "Chimney Material" },
+	{ "property": "interior_wall_material", "label": "Interior Wall Material" },
+	{ "property": "interior_floor_material", "label": "Interior Floor Material" },
+	{ "property": "ceiling_material", "label": "Ceiling Material" },
+	{ "property": "interior_trim_material", "label": "Interior Trim Material" },
 ]
 
 const GEOMETRY_SECTIONS: Array[Dictionary] = [
@@ -32,6 +36,16 @@ const GEOMETRY_SECTIONS: Array[Dictionary] = [
 			{ "property": "base_trim_depth", "label": "Base Trim Depth", "min": 0.01, "max": 0.2, "step": 0.005 },
 			{ "property": "foundation_height", "label": "Foundation Height", "min": 0.1, "max": 2.0, "step": 0.01 },
 			{ "property": "foundation_overhang", "label": "Foundation Overhang", "min": 0.0, "max": 0.5, "step": 0.01 },
+		],
+	},
+	{
+		"title": "Interior",
+		"slots": [
+			{ "property": "interior_floor_thickness", "label": "Floor Thickness", "min": 0.05, "max": 1.0, "step": 0.01 },
+			{ "property": "interior_base_trim_height", "label": "Baseboard Height", "min": 0.0, "max": 0.6, "step": 0.01 },
+			{ "property": "interior_base_trim_depth", "label": "Baseboard Depth", "min": 0.005, "max": 0.2, "step": 0.005 },
+			{ "property": "interior_casing_width", "label": "Casing Width", "min": 0.0, "max": 0.4, "step": 0.005 },
+			{ "property": "interior_casing_depth", "label": "Casing Depth", "min": 0.005, "max": 0.2, "step": 0.005 },
 		],
 	},
 	{
@@ -49,6 +63,7 @@ const GEOMETRY_SECTIONS: Array[Dictionary] = [
 			{ "property": "roof_pitch_degrees", "label": "Roof Pitch", "min": 0.0, "max": 80.0, "step": 0.5, "suffix": "°" },
 			{ "property": "roof_overhang", "label": "Roof Overhang", "min": 0.0, "max": 1.5, "step": 0.01 },
 			{ "property": "roof_fascia_height", "label": "Roof Fascia Height", "min": 0.0, "max": 0.6, "step": 0.01 },
+			{ "property": "roof_deck_thickness", "label": "Roof Deck Thickness", "min": 0.02, "max": 0.5, "step": 0.01 },
 			{ "property": "roof_uv_scale", "label": "Roof UV Scale", "min": 0.05, "max": 10.0, "step": 0.05, "suffix": "×" },
 		],
 	},
@@ -124,6 +139,10 @@ const GEOMETRY_SECTIONS: Array[Dictionary] = [
 			{ "property": "door_default_height", "label": "Door Height", "min": 0.3, "max": 20.0, "step": 0.01 },
 			{ "property": "garage_door_default_width", "label": "Garage Door Width", "min": 0.3, "max": 50.0, "step": 0.01 },
 			{ "property": "garage_door_default_height", "label": "Garage Door Height", "min": 0.3, "max": 20.0, "step": 0.01 },
+			{ "property": "door_default_mode", "label": "Door Export Mode", "kind": "enum", "options": ["Static", "Animated", "Open Hole"] },
+			{ "property": "garage_door_default_mode", "label": "Garage Export Mode", "kind": "enum", "options": ["Static", "Animated", "Open Hole"] },
+			{ "property": "door_open_duration", "label": "Open Duration", "min": 0.1, "max": 10.0, "step": 0.05, "suffix": "s" },
+			{ "property": "door_swing_degrees", "label": "Door Swing", "min": 15.0, "max": 175.0, "step": 1.0, "suffix": "°" },
 		],
 	},
 	{

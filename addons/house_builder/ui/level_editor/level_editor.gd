@@ -7,6 +7,7 @@ const TOOLS: Array[Dictionary] = [
 	{ "tool": GridEditor.Tool.CELLS, "label": "Cells", "tooltip": "Paint floor cells", "ground_only": false },
 	{ "tool": GridEditor.Tool.PORCH, "label": "Porch", "tooltip": "Paint porch deck cells (lowest floor only)", "ground_only": true },
 	{ "tool": GridEditor.Tool.SIDEWALK, "label": "Walk", "tooltip": "Paint sidewalk/driveway slabs at grade (lowest floor only)", "ground_only": true },
+	{ "tool": GridEditor.Tool.BAY, "label": "Bay", "tooltip": "Mark house cells whose floor sits at grade instead of at floor level - garage bays (lowest floor only)", "ground_only": true },
 	{ "tool": GridEditor.Tool.WINDOW, "label": "Window", "tooltip": "Drag across wall edges to place a window (click for one cell); click an existing one to edit it", "ground_only": false },
 	{ "tool": GridEditor.Tool.DOOR, "label": "Door", "tooltip": "Drag across wall edges to place a door (lowest floor only)", "ground_only": true },
 	{ "tool": GridEditor.Tool.GARAGE, "label": "Garage", "tooltip": "Drag across wall edges to place a garage door spanning multiple cells (lowest floor only)", "ground_only": true },

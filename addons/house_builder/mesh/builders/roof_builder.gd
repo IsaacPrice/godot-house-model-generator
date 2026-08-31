@@ -171,4 +171,4 @@ static func _emit_prism(
 
 static func _emit(model: RoofModel, accumulator: SurfaceAccumulator) -> void:
 	for plane in model.planes:
-		PlanPolygon.emit(accumulator, plane.slot, plane.material, plane.points, plane.uvs, plane.normal, plane.convex)
+		PlanPolygon.emit(accumulator, plane.slot, plane.material, plane.points, plane.uvs, plane.normal, plane.convex, plane.visibility)

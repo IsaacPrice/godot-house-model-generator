@@ -57,3 +57,7 @@ static func can_paint_porch_cell(floor_data: FloorData, cell: Vector2i) -> bool:
 
 static func can_paint_sidewalk_cell(floor_data: FloorData, cell: Vector2i) -> bool:
 	return not floor_data.cells.has(cell) and not floor_data.porch_cells.has(cell)
+
+
+static func can_paint_garage_cell(floor_data: FloorData, cell: Vector2i) -> bool:
+	return floor_data.cells.has(cell)

@@ -209,11 +209,11 @@ func _test_lower_mode() -> void:
 		return absf(a.z - 2.15) < 0.01 and absf(b.z - 2.15) < 0.01 and absf(c.z - 2.15) < 0.01)
 	_check("lower", "foundation south face intact", absf(south_face - 6.3 * 0.4) < EPS)
 
-	var boxes: Array[Dictionary] = _entries_named(_build_shapes(house), "Floor0")
-	_check("lower", "one floor box", boxes.size() == 1)
-	if boxes.size() == 1:
-		var shape: BoxShape3D = boxes[0]["shape"]
-		_check("lower", "floor box spans down to the lowered foundation", absf(shape.size.y - (3.0 + 1.4)) < EPS)
+	var walls: Array[Dictionary] = _entries_named(_build_shapes(house), "Wall0")
+	_check("lower", "four wall boxes", walls.size() == 4)
+	for entry in walls:
+		var shape: BoxShape3D = entry["shape"]
+		_check("lower", "wall spans down to the lowered foundation", absf(shape.size.y - (3.0 + 1.4)) < EPS)
 
 
 func _test_stairs_grade() -> void:
@@ -258,8 +258,7 @@ func _garage_house() -> HouseData:
 
 
 func _build_shapes(house: HouseData) -> Array[Dictionary]:
-	var built: Dictionary = HouseMeshBuilder.build_with_roof_models(house)
-	return HouseCollisionBuilder.build(house, built["roof_models"])
+	return HouseCollisionBuilder.build(house, HouseMeshBuilder.build_with_roof_models(house))
 
 
 func _entries_named(shapes: Array[Dictionary], name: String) -> Array[Dictionary]:

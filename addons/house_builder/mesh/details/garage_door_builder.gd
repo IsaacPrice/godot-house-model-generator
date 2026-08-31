@@ -25,13 +25,24 @@ static func build(house: HouseData, opening: Dictionary, accumulator: SurfaceAcc
 	_box(accumulator, SLOT_CASING, house.window_frame_material, a, along, normal, width - frame, width, depth_in, depth_out, bottom_y, top_y, casing_interior)
 	_box(accumulator, SLOT_CASING, house.window_frame_material, a, along, normal, frame, width - frame, depth_in, depth_out, top_y - frame, top_y, casing_interior)
 
-	_emit_panels(house, accumulator, a, along, normal, frame, width - frame, bottom_y, top_y - frame)
+	if (opening["detail"] as WallDetail).door_mode == WallDetail.DoorMode.STATIC:
+		build_leaf(house, opening, accumulator)
+
+
+static func build_leaf(house: HouseData, opening: Dictionary, accumulator: SurfaceAccumulator) -> void:
+	var a: Vector2 = opening["a"]
+	var along: Vector2 = (opening["b"] as Vector2 - a).normalized()
+	var normal: Vector2 = opening["normal"]
+	var width: float = a.distance_to(opening["b"])
+	var frame: float = DetailConstants.FRAME_WIDTH
+	var animated: bool = (opening["detail"] as WallDetail).is_animated()
+	_emit_panels(house, accumulator, a, along, normal, frame, width - frame, opening["bottom_y"], (opening["top_y"] as float) - frame, animated)
 
 
 static func _emit_panels(
 	house: HouseData, accumulator: SurfaceAccumulator,
 	origin: Vector2, along: Vector2, normal: Vector2,
-	s0: float, s1: float, base_y: float, head_y: float
+	s0: float, s1: float, base_y: float, head_y: float, animated: bool = false
 ) -> void:
 	var slab_out: float = house.wall_thickness * 0.5 - DetailConstants.DOOR_SLAB_INSET
 	var slab_in: float = slab_out - DetailConstants.DOOR_SLAB_THICKNESS
@@ -42,6 +53,8 @@ static func _emit_panels(
 		return
 
 	var material: Material = house.garage_door_material
+	var back: int = SurfaceAccumulator.Visibility.EXTERIOR if animated else SurfaceAccumulator.Visibility.INTERIOR
+	_face_vertical(accumulator, SLOT_DOOR, material, origin, along, normal, s0, s1, slab_in, base_y, head_y, -1.0, back)
 
 	for k in range(count):
 		var y0: float = base_y + k * (panel_height + gap)
@@ -59,7 +72,8 @@ static func _emit_panels(
 static func _face_vertical(
 	accumulator: SurfaceAccumulator, slot: String, material: Material,
 	origin: Vector2, along: Vector2, normal: Vector2,
-	s0: float, s1: float, depth: float, y0: float, y1: float, facing: float
+	s0: float, s1: float, depth: float, y0: float, y1: float, facing: float,
+	visibility: int = SurfaceAccumulator.Visibility.EXTERIOR
 ) -> void:
 	var p0: Vector2 = origin + along * s0 + normal * depth
 	var p1: Vector2 = origin + along * s1 + normal * depth
@@ -70,7 +84,8 @@ static func _face_vertical(
 		Vector3(p0.x, y0, p0.y), Vector3(p1.x, y0, p1.y),
 		Vector3(p1.x, y1, p1.y), Vector3(p0.x, y1, p0.y),
 		Vector3(normal.x * facing, 0.0, normal.y * facing),
-		Vector2(0, rise), Vector2(run, rise), Vector2(run, 0), Vector2(0, 0)
+		Vector2(0, rise), Vector2(run, rise), Vector2(run, 0), Vector2(0, 0),
+		visibility
 	)
 
 

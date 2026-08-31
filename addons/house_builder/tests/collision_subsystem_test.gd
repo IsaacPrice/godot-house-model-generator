@@ -9,8 +9,10 @@ var failures: int = 0
 func _init() -> void:
 	_test_empty_house()
 	_test_bar_house_shapes()
-	_test_l_footprint_merges_to_two_boxes()
-	_test_two_floor_boxes()
+	_test_l_footprint_decks()
+	_test_two_floor_shell()
+	_test_doorway_is_passable()
+	_test_garage_bay_deck()
 	_test_porch_and_stairs()
 	_test_gable_roof_collision()
 
@@ -35,8 +37,26 @@ func _bar_house() -> HouseData:
 
 
 func _build_shapes(house: HouseData) -> Array[Dictionary]:
-	var built: Dictionary = HouseMeshBuilder.build_with_roof_models(house)
-	return HouseCollisionBuilder.build(house, built["roof_models"])
+	return HouseCollisionBuilder.build(house, HouseMeshBuilder.build_with_roof_models(house))
+
+
+func _span(entry: Dictionary, axis: int) -> Vector2:
+	var half: float = (entry["shape"] as BoxShape3D).size[axis] * 0.5
+	var mid: float = (entry["transform"] as Transform3D).origin[axis]
+	return Vector2(mid - half, mid + half)
+
+
+func _covers(entries: Array[Dictionary], point: Vector3) -> bool:
+	for entry in entries:
+		var shape: BoxShape3D = entry["shape"]
+		if shape == null:
+			continue
+		var local: Vector3 = point - (entry["transform"] as Transform3D).origin
+		if absf(local.x) <= shape.size.x * 0.5 + EPS \
+				and absf(local.y) <= shape.size.y * 0.5 + EPS \
+				and absf(local.z) <= shape.size.z * 0.5 + EPS:
+			return true
+	return false
 
 
 func _entries_named(shapes: Array[Dictionary], name: String) -> Array[Dictionary]:
@@ -55,16 +75,23 @@ func _test_bar_house_shapes() -> void:
 	var house := _bar_house()
 	var shapes: Array[Dictionary] = _build_shapes(house)
 
-	_check("bar", "exactly 2 shapes, got %d" % shapes.size(), shapes.size() == 2)
+	var walls: Array[Dictionary] = _entries_named(shapes, "Wall0")
+	_check("bar", "one wall box per side, got %d" % walls.size(), walls.size() == 4)
+	_check("bar", "the middle of the room is hollow", not _covers(walls, Vector3(3.0, 1.5, 1.0)))
+	_check("bar", "the north wall is solid", _covers(walls, Vector3(3.0, 1.5, 0.0)))
+	_check("bar", "the south wall is solid", _covers(walls, Vector3(3.0, 1.5, 2.0)))
+	_check("bar", "the west wall is solid", _covers(walls, Vector3(0.0, 1.5, 1.0)))
+	_check("bar", "the east wall is solid", _covers(walls, Vector3(6.0, 1.5, 1.0)))
+	for entry in walls:
+		var vertical: Vector2 = _span(entry, 1)
+		_check("bar", "wall runs foundation to plate (%.2f .. %.2f)" % [vertical.x, vertical.y],
+			absf(vertical.x - house.foundation_base_y()) < EPS and absf(vertical.y - 3.0) < EPS)
 
-	var boxes: Array[Dictionary] = _entries_named(shapes, "Floor0")
-	_check("bar", "one merged floor box", boxes.size() == 1)
-	if boxes.size() == 1:
-		var shape: BoxShape3D = boxes[0]["shape"]
-		var transform: Transform3D = boxes[0]["transform"]
-		_check("bar", "box size %s" % shape.size, shape.size.is_equal_approx(Vector3(6.2, 3.0 + house.foundation_height, 2.2)))
-		var expected_center := Vector3(3.0, (3.0 - house.foundation_height) * 0.5, 1.0)
-		_check("bar", "box center %s" % transform.origin, transform.origin.is_equal_approx(expected_center))
+	var decks: Array[Dictionary] = _entries_named(shapes, "Deck")
+	_check("bar", "a deck under the floor and one over the ceiling, got %d" % decks.size(), decks.size() == 2)
+	_check("bar", "you can stand on the ground floor", _covers(decks, Vector3(3.0, -0.1, 1.0)))
+	_check("bar", "the ceiling is solid", _covers(decks, Vector3(3.0, 2.9, 1.0)))
+	_check("bar", "the room between them is clear", not _covers(decks, Vector3(3.0, 1.5, 1.0)))
 
 	var roofs: Array[Dictionary] = _entries_named(shapes, "Roof")
 	_check("bar", "one roof shape", roofs.size() == 1)
@@ -82,7 +109,7 @@ func _test_bar_house_shapes() -> void:
 		_check("bar", "ridge rises above the walls (max y %.2f)" % max_y, max_y > 3.0)
 
 
-func _test_l_footprint_merges_to_two_boxes() -> void:
+func _test_l_footprint_decks() -> void:
 	var house := HouseData.new()
 	var floor_data := FloorData.new()
 	floor_data.level = 0
@@ -90,11 +117,19 @@ func _test_l_footprint_merges_to_two_boxes() -> void:
 		floor_data.add_cell(cell)
 	house.add_floor(floor_data)
 
-	var boxes: Array[Dictionary] = _entries_named(_build_shapes(house), "Floor0")
-	_check("l_shape", "L footprint merges to 2 boxes, got %d" % boxes.size(), boxes.size() == 2)
+	var shapes: Array[Dictionary] = _build_shapes(house)
+	var decks: Array[Dictionary] = _entries_named(shapes, "Deck")
+	_check("l_shape", "L deck merges to 2 rects per level, got %d" % decks.size(), decks.size() == 4)
+	_check("l_shape", "the notch has no floor", not _covers(decks, Vector3(3.0, -0.1, 3.0)))
+	_check("l_shape", "the leg has a floor", _covers(decks, Vector3(1.0, -0.1, 3.0)))
+
+	var walls: Array[Dictionary] = _entries_named(shapes, "Wall0")
+	_check("l_shape", "the reflex corner is walled", _covers(walls, Vector3(2.0, 1.5, 3.0)))
+	_check("l_shape", "both legs stay hollow",
+		not _covers(walls, Vector3(1.0, 1.5, 1.0)) and not _covers(walls, Vector3(1.0, 1.5, 3.0)))
 
 
-func _test_two_floor_boxes() -> void:
+func _test_two_floor_shell() -> void:
 	var house := _bar_house()
 	var upper := FloorData.new()
 	upper.level = 1
@@ -104,13 +139,62 @@ func _test_two_floor_boxes() -> void:
 	house.add_floor(upper)
 
 	var shapes: Array[Dictionary] = _build_shapes(house)
-	var upper_boxes: Array[Dictionary] = _entries_named(shapes, "Floor1")
-	_check("two_floor", "one upper box", upper_boxes.size() == 1)
-	if upper_boxes.size() == 1:
-		var shape: BoxShape3D = upper_boxes[0]["shape"]
-		var transform: Transform3D = upper_boxes[0]["transform"]
-		_check("two_floor", "upper box size %s" % shape.size, shape.size.is_equal_approx(Vector3(4.2, 2.6, 2.2)))
-		_check("two_floor", "upper box center %s" % transform.origin, transform.origin.is_equal_approx(Vector3(2.0, 3.0 + 1.3, 1.0)))
+	var upper_walls: Array[Dictionary] = _entries_named(shapes, "Wall1")
+	_check("two_floor", "upper storey gets its own walls", upper_walls.size() == 4)
+	_check("two_floor", "upper room is hollow", not _covers(upper_walls, Vector3(2.0, 4.3, 1.0)))
+	for entry in upper_walls:
+		var vertical: Vector2 = _span(entry, 1)
+		_check("two_floor", "upper wall spans its storey (%.2f .. %.2f)" % [vertical.x, vertical.y],
+			absf(vertical.x - 3.0) < EPS and absf(vertical.y - 5.6) < EPS)
+
+	var decks: Array[Dictionary] = _entries_named(shapes, "Deck")
+	_check("two_floor", "a deck separates the storeys", _covers(decks, Vector3(2.0, 2.9, 1.0)))
+	_check("two_floor", "the upper storey has a ceiling", _covers(decks, Vector3(2.0, 5.5, 1.0)))
+
+
+func _test_doorway_is_passable() -> void:
+	for mode in [WallDetail.DoorMode.STATIC, WallDetail.DoorMode.ANIMATED, WallDetail.DoorMode.NONE]:
+		var house := _bar_house()
+		var door := WallDetail.create(WallDetail.DetailType.DOOR, 0, house)
+		door.cell = Vector2i(1, 0)
+		door.direction = WallDetail.EdgeDir.NORTH
+		door.door_mode = mode
+		house.floors[0].set_wall_detail(door)
+
+		var walls: Array[Dictionary] = _entries_named(_build_shapes(house), "Wall0")
+		var blocked: bool = _covers(walls, Vector3(3.0, 1.0, 0.0))
+		var label: String = WallDetail.DoorMode.keys()[mode]
+		if mode == WallDetail.DoorMode.STATIC:
+			_check("doorway", "a shut %s door blocks the wall" % label, blocked)
+		else:
+			_check("doorway", "a %s door leaves the wall open" % label, not blocked)
+		_check("doorway", "%s keeps a header above the opening" % label,
+			_covers(walls, Vector3(3.0, 2.8, 0.0)))
+		_check("doorway", "%s keeps the wall beside it" % label,
+			_covers(walls, Vector3(0.5, 1.0, 0.0)))
+
+
+func _test_garage_bay_deck() -> void:
+	var house := _bar_house()
+	house.sidewalk_drop = 0.3
+	house.foundation_height = 0.5
+	house.floors[0].add_garage_cell(Vector2i(0, 0))
+
+	var decks: Array[Dictionary] = _entries_named(_build_shapes(house), "Deck")
+	_check("bay", "the bay floor drops to grade", _covers(decks, Vector3(1.0, house.grade_y() - 0.05, 1.0)))
+	_check("bay", "the bay has no floor at storey level", not _covers(decks, Vector3(1.0, -0.05, 1.0)))
+	_check("bay", "the rest of the house keeps its floor", _covers(decks, Vector3(5.0, -0.05, 1.0)))
+
+	var shallow := _bar_house()
+	shallow.sidewalk_drop = 2.0
+	shallow.foundation_height = 0.4
+	shallow.floors[0].add_garage_cell(Vector2i(0, 0))
+
+	var shallow_decks: Array[Dictionary] = _entries_named(_build_shapes(shallow), "Deck")
+	_check("bay", "a bay never drops below the foundation",
+		not _covers(shallow_decks, Vector3(1.0, shallow.grade_y() + 0.1, 1.0)))
+	_check("bay", "it stops on the foundation base instead",
+		_covers(shallow_decks, Vector3(1.0, shallow.foundation_base_y() - 0.05, 1.0)))
 
 
 func _test_porch_and_stairs() -> void:

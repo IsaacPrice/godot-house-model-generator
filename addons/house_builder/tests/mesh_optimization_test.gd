@@ -57,11 +57,19 @@ func _test_house(path: String) -> void:
 	_check(label, "each mode is a subset of the looser one (%d >= %d >= %d)" % [
 		full_keys.size(), reachable_keys.size(), lean_keys.size(),
 	], _is_subset(reachable_keys, full_keys) and _is_subset(lean_keys, reachable_keys))
-	_check(label, "every mode keeps every surface", lean.get_surface_count() == full.get_surface_count())
+	_check(label, "dropping buried faces empties no surface", _surface_names(reachable) == _surface_names(full))
 
 	var visible: Dictionary = {}
 	for key in await _classify(full, house.grade_y(), true):
 		visible[key] = true
+
+	var lean_names: Dictionary = _surface_names(lean)
+	var lost_exterior: Array = []
+	for key in visible:
+		var slot: String = key.split("|")[0]
+		if not lean_names.has(slot) and not lost_exterior.has(slot):
+			lost_exterior.append(slot)
+	_check(label, "no surface with exterior geometry is dropped (%s)" % str(lost_exterior), lost_exterior.is_empty())
 
 	var exposed_buried: Array = []
 	for key in full_keys:
@@ -83,6 +91,13 @@ func _test_house(path: String) -> void:
 		dropped_visible.size(),
 	])
 	_check(label, "optimizing leaves less unreachable geometry", lean_unreachable < full_unreachable)
+
+
+func _surface_names(mesh: ArrayMesh) -> Dictionary:
+	var names: Dictionary = {}
+	for s in range(mesh.get_surface_count()):
+		names[mesh.surface_get_name(s)] = true
+	return names
 
 
 func _is_subset(inner: Dictionary, outer: Dictionary) -> bool:
